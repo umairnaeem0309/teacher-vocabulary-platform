@@ -1,0 +1,30 @@
+# Development services (canonical configuration).
+#
+# The primary development machine runs PostgreSQL natively and has no Docker
+# (decision.md D002). This compose file is the canonical environment for any
+# Docker-capable machine and keeps native and container setups equivalent.
+#
+# Usage:
+#   docker compose up -d db        # database only (local development)
+#   docker compose up -d           # full stack (once backend/frontend images exist)
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: vocab-platform-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: vocab_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vocab_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:

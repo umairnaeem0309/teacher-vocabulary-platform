@@ -1,0 +1,60 @@
+# --- Python / backend ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# --- Node / frontend ---
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+
+# --- Environment / secrets ---
+.env
+.env.local
+.env.*.local
+*.pem
+
+# --- Data ---
+# Raw source datasets are large (wiktextract dump is ~2.7 GB) and are kept out
+# of version control on purpose. Provenance, versions and download sources are
+# documented in data/raw/README.md. Raw data must never be modified.
+data/raw/*
+!data/raw/README.md
+data/intermediate/
+data/processed/
+data/embeddings/
+data/construction/
+
+# --- SQLite construction databases ---
+*.sqlite
+*.sqlite3
+*.db
+
+# --- Embedding model caches ---
+models/
+.cache/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Tool metadata ---
+.freebuff/
+
+# --- Logs ---
+*.log
+logs/

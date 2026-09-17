@@ -27,19 +27,23 @@ Acceptance criteria: all of the above verified.
 ---
 
 ## Phase 1 — Architecture Foundation
-Status: TODO
+Status: **COMPLETE**
 
-- [ ] Backend module layout per domain (auth, students, vocabulary, search, sets, assignments, reviews, fsrs, imports, exports, admin)
-- [ ] Frontend route structure for /login /dashboard /vocabulary /students /sets /settings
-- [ ] Structured logging with request correlation ID
-- [ ] Structured, consistent error handling (no internals leaked)
-- [ ] Health checks extended (readiness semantics)
-- [ ] Configuration validation at startup
-- [ ] Unit tests for logging/error handling; API tests
-- [ ] Update architecture.md, current-state.md, decision.md
-- [ ] Commit
+- [x] Backend module layout per domain (auth, students, vocabulary, search, sets, assignments, reviews, fsrs, imports, exports, admin) — routers registered, honest 501 stubs
+- [x] Frontend route structure for /login /dashboard /vocabulary /students /sets /settings (+ dynamic segments) — enforced by tests
+- [x] Structured logging with request correlation ID (console/JSON, sensitive-key masking)
+- [x] Structured, consistent error handling (uniform envelope, no internals leaked; D005)
+- [x] Health checks (liveness + database connectivity, real DB round-trip)
+- [x] Configuration validation at startup (DATABASE_URL/APP_ENV/LOG_LEVEL/LOG_FORMAT)
+- [x] Typed frontend API client mirroring the error envelope (ApiError)
+- [x] Unit tests: backend 27 passed; frontend 19 passed (vitest)
+- [x] Quality gates: ruff, mypy, pytest, tsc, eslint, next build
+- [x] Update architecture.md, current-state.md, decision.md (D005), .env.example
+- [x] Commit(s) dated 2026-09-17 (+0500)
 
-Tests: pytest for error handlers/log middleware; frontend typecheck+lint.
+Tests: tests/test_error_envelope.py, tests/test_middleware.py,
+tests/test_settings.py (backend); tests/routes.test.ts,
+tests/api-client.test.ts (frontend).
 
 ---
 

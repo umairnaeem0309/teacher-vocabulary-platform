@@ -95,3 +95,34 @@ Installing VS 2022 Build Tools (~2–6 GB) immediately to compile from source
 
 ## Status
 Accepted — OPEN ITEM tracked in current-state.md and plan.md
+
+---
+
+# Decision D005
+
+## Date
+2026-09-17
+
+## Decision
+All API errors — domain, schema-validation, framework and unhandled — return
+one uniform envelope:
+`{"error": {"code", "message", "details", "request_id"}}`.
+Endpoints whose functionality belongs to a later phase are registered as
+honest 501 stubs (code `not_implemented`, with the planned phase in details)
+instead of being omitted or faked.
+
+## Reason
+Section 55 requires structured, consistent, actionable, safe errors. A single
+envelope lets the frontend have one error path (ApiError) and gives users a
+correlation ID that matches server logs (section 56). The 501 convention keeps
+the API surface complete and self-documenting from Phase 1 while never
+claiming unimplemented features work.
+
+## Alternatives considered
+RFC 7807 problem+json (viable, but adds negotiation complexity without a
+consumer that needs it); per-domain error shapes (rejected: inconsistent,
+duplicated client handling); omitting unimplemented endpoints (rejected:
+clients and tests cannot distinguish "missing" from "planned").
+
+## Status
+Accepted

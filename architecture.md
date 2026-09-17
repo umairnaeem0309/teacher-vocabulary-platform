@@ -1,6 +1,6 @@
 # Architecture
 
-Reflects the implementation as of Phase 0. Updated every phase.
+Reflects the implementation as of Phase 1. Updated every phase.
 
 ## System Overview
 
@@ -16,28 +16,53 @@ flowchart LR
     CORE -->|batch import| PG
 ```
 
-## Frontend Architecture (Phase 0: skeleton)
+## Frontend Architecture (Phase 1: route structure)
 
 - Next.js (App Router), TypeScript, Tailwind CSS 4; managed with pnpm.
-- Route structure per master_prompt.md section 53 is established in Phase 1.
-- Server state: TanStack Query (Phase 16+). No Redux.
+- Route structure per section 53 implemented: /login, /dashboard,
+  /vocabulary (+ [senseId]), /students (+ [studentId], /vocabulary, /review),
+  /sets (+ [setId]), /settings (+ /shortcuts). Coverage is enforced by
+  `frontend/tests/routes.test.ts` against `lib/routes.ts` (single source
+  of truth, including which phase implements each route).
+- Pages show an honest placeholder (name + planned phase) until their phase
+  implements the real UI.
+- `lib/api.ts`: typed fetch wrapper; every non-2xx becomes `ApiError`
+  carrying the backend envelope (code, message, details, request_id).
+- Server state: TanStack Query from Phase 16. No Redux.
 - shadcn/ui component library introduced with the first real screens (Phase 16).
+- Vitest for unit tests (`pnpm exec vitest run`).
 
-## Backend Architecture (Phase 0: skeleton)
+## Backend Architecture (Phase 1: core foundation)
 
 ```text
 backend/
   app/
-    main.py          # app factory, lifespan, router mounting
-    config.py        # pydantic-settings, env-driven
-    api/v1/          # one router per domain (health only, so far)
-    db/session.py    # SQLAlchemy 2 engine + session factory (psycopg3)
-  tests/             # pytest suite
+    main.py              # app factory: middleware, CORS, handlers, routers
+    config.py            # re-export of app.core.settings
+    core/
+      settings.py        # validated env settings (fails fast at startup)
+      context.py         # per-request correlation ID (contextvars)
+      logging.py         # JSON/console formats, correlation filter, masking
+      errors.py          # AppError hierarchy + error envelope builder
+      middleware.py      # CorrelationId + AccessLog middleware
+    api/
+      exception_handlers.py  # AppError/422/HTTP/500 -> uniform envelope
+      v1/                # one router per domain + stub registry
+        routers.py       # domain router registry (section 54)
+        stub.py          # honest 501 stubs for future-phase endpoints
+        health.py        # real health endpoints
+        auth|students|vocabulary|search|sets|assignments|reviews|fsrs|imports|exports|admin.py
+    db/session.py        # SQLAlchemy 2 engine + session factory (psycopg3)
+  tests/                 # pytest suite (27 tests)
 ```
 
 - Sync SQLAlchemy engine (D003) — simple, Alembic-friendly.
-- Domain routers are added under `app/api/v1/` in later phases; business
-  logic lives in service modules, never in route handlers (section 54).
+- Domain routers are registered in `app/api/v1/routers.py`; business logic
+  will live in service modules, never in route handlers (section 54).
+- Every response carries `X-Request-ID`; every error is the uniform envelope
+  `{"error": {code, message, details, request_id}}` (D005, section 55).
+- Access logs are structured with route/status/duration and the correlation
+  ID; sensitive keys are masked before rendering (section 56).
 
 ## Database Architecture
 
@@ -81,8 +106,11 @@ session storage (Phase 15). Students have no credentials.
 
 ## Security
 
-Phase 0: secrets via environment (`.env.example` documents all variables;
-real `.env` Git-ignored), no secrets in code. Full pass in Phase 24.
+Secrets via environment (`.env.example` documents all variables; real `.env`
+Git-ignored), no secrets in code. Error responses never leak stack traces,
+paths or internals (enforced by handlers + tests). CORS restricted to the
+configured browser origins; credentials allowed for future session cookies.
+Full hardening pass in Phase 24.
 
 ## Deployment
 

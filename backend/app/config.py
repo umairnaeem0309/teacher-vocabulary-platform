@@ -1,38 +1,11 @@
-"""Application configuration.
+"""Settings re-export.
 
-All settings are read from environment variables (12-factor style) so the same
-code runs in local development, tests and production. See .env.example at the
-repository root for documentation of every variable.
+The implementation lives in :mod:`app.core.settings`; this module keeps the
+short import path (``from app.config import settings``) used across the app.
 """
 
-from functools import lru_cache
-
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class Settings(BaseSettings):
-    """Environment-driven application settings."""
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-    app_name: str = "English-Polish Vocabulary Platform"
-    app_env: str = "development"
-
-    # --- Database ---
-    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/vocab_platform"
-
-    # --- HTTP ---
-    cors_origins: str = "http://localhost:3000"
-
-
-@lru_cache
-def get_settings() -> Settings:
-    """Return cached settings instance."""
-    return Settings()
-
+from app.core.settings import Settings, SettingsError, get_settings
 
 settings = get_settings()
+
+__all__ = ["Settings", "SettingsError", "get_settings", "settings"]

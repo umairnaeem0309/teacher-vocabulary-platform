@@ -37,11 +37,16 @@ def get_engine() -> Engine:
     return _engine
 
 
-def get_session() -> Generator[Session, None, None]:
-    """Yield a database session (FastAPI dependency)."""
+def make_session() -> Session:
+    """Return a plain session (tests, scripts). Caller manages commit/close."""
     get_engine()
     assert _session_factory is not None
-    session = _session_factory()
+    return _session_factory()
+
+
+def get_session() -> Generator[Session, None, None]:
+    """Yield a database session (FastAPI dependency)."""
+    session = make_session()
     try:
         yield session
         session.commit()

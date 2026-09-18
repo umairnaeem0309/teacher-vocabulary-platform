@@ -48,16 +48,18 @@ tests/api-client.test.ts (frontend).
 ---
 
 ## Phase 2 — Database Foundation
-Status: TODO
+Status: **COMPLETE**
 
-- [ ] Alembic setup
-- [ ] Core tables: teachers, sessions, students, vocabulary_senses, vocabulary_forms, translations, definitions, examples, cefr_evidence, frequency_evidence, categories, vocabulary_categories, wordnet_relations, vocabulary_flags, vocabulary_sources, vocabulary_priority, student_vocabulary, review_events, fsrs_states, vocabulary_sets, vocabulary_set_items
-- [ ] UNIQUE(student_id, master_sense_id) constraint
-- [ ] Indexes per master_prompt.md section 42, documented
-- [ ] Migration up/down tests, constraint/unique-violation tests
-- [ ] Commit
+- [x] Alembic setup (env.py wired to app settings; deterministic naming convention)
+- [x] Core tables (25): teachers, teacher_sessions, students, vocabulary_senses, vocabulary_forms, sense_definitions, sense_translations, sense_examples, vocabulary_sources, sense_source_records, cefr_evidence, frequency_evidence, vocabulary_flags, wordnet_synsets, wordnet_relations, sense_wordnet_links, categories, sense_categories, sense_priorities, student_vocabulary, student_fsrs_states, review_events, vocabulary_sets, vocabulary_set_items, teacher_priority_overrides
+- [x] UNIQUE(student_id, sense_id) constraint — proven by DB-level test
+- [x] Indexes per section 42 (headword, CEFR, priority, POS, student+state, due_at, review time, translations, set items)
+- [x] Migration up/down round-trip test; FK and uniqueness violation tests
+- [x] Schema decisions recorded (D006)
+- [x] Gates: ruff, mypy, pytest (40 passed)
+- [x] Commit dated 2026-09-18 (+0500)
 
-Tests: migration round-trip; UNIQUE constraint violation; FK integrity.
+Tests: tests/test_migrations.py, tests/test_constraints.py.
 
 ---
 

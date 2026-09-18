@@ -1,6 +1,6 @@
 # Architecture
 
-Reflects the implementation as of Phase 1. Updated every phase.
+Reflects the implementation as of Phase 2. Updated every phase.
 
 ## System Overview
 
@@ -64,13 +64,29 @@ backend/
 - Access logs are structured with route/status/duration and the correlation
   ID; sensitive keys are masked before rendering (section 56).
 
-## Database Architecture
+## Database Architecture (Phase 2: core schema)
 
 - PostgreSQL 17, native install on this machine (D002); docker-compose.yml
   provides the canonical service definition for Docker-capable environments.
-- Database `vocab_platform` created; schema arrives in Phase 2 via Alembic.
-- Key constraint preview (Phase 2):
-  `UNIQUE(student_id, master_sense_id)` on student vocabulary records.
+- Alembic migrations; deterministic constraint names via naming convention.
+- 25 tables in three groups:
+  - **identity**: teachers, teacher_sessions, students
+  - **vocabulary**: vocabulary_senses (root; sense_key UNIQUE),
+    vocabulary_forms, sense_definitions, sense_translations, sense_examples,
+    vocabulary_sources, sense_source_records, cefr_evidence,
+    frequency_evidence, vocabulary_flags, wordnet_synsets,
+    wordnet_relations, sense_wordnet_links, categories, sense_categories,
+    sense_priorities
+  - **learning**: student_vocabulary (UNIQUE(student_id, sense_id) — the
+    duplicate-prevention guarantee), student_fsrs_states (due_at indexed),
+    review_events (immutable, before/after state), vocabulary_sets,
+    vocabulary_set_items, teacher_priority_overrides
+- UUID PKs (D006); enums stored as strings; soft deletion via is_active/status.
+- Key indexes (section 42): headword_normalized, cefr_level, priority_score,
+  part_of_speech, translations (normalized), student+learning_state, due_at,
+  review (student, time), set items by sense.
+- Evidence tables are UNIQUE per (sense, source): sources never overwrite
+  each other (sections 14-15).
 
 ## ETL Architecture
 

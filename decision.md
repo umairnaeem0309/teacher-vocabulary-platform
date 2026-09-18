@@ -126,3 +126,41 @@ clients and tests cannot distinguish "missing" from "planned").
 
 ## Status
 Accepted
+
+---
+
+# Decision D006
+
+## Date
+2026-09-18
+
+## Decision
+Schema identity and integrity model:
+
+1. All primary keys are random UUIDs (application-generated), except
+   `vocabulary_sources` (small registry, integer PK).
+2. `vocabulary_senses.sense_key` is a stable deterministic string identity
+   (format finalized in Phase 6) and UNIQUE - sense-level identity from day
+   one (section 9).
+3. Duplicate prevention is enforced by a real database constraint:
+   `UNIQUE(student_id, sense_id)` on `student_vocabulary` (section 28).
+4. Evidence tables (`cefr_evidence`, `frequency_evidence`) are UNIQUE per
+   (sense, source) so sources never overwrite each other (sections 14-15).
+5. Enums are stored as readable strings via SQLAlchemy non-native enums
+   (portable rows; no PG enum migration pain).
+6. Deletion is soft (`is_active`, `StudentStatus`) for students and senses;
+   historical learning records are never destroyed (section 27).
+
+## Reason
+UUID PKs avoid sequential-ID enumeration and merge cleanly across
+environments; named constraints keep autogenerate deterministic.
+UNIQUE(student, sense) is the core duplicate-prevention guarantee and is
+proven by database-level tests, not only application code.
+
+## Alternatives considered
+BigInteger autoincrement PKs (simpler, but leaks record counts and
+complicates multi-environment merges); PG native enums (harder to extend);
+application-level duplicate checks only (prohibited by section 28).
+
+## Status
+Accepted

@@ -88,13 +88,20 @@ backend/
 - Evidence tables are UNIQUE per (sense, source): sources never overwrite
   each other (sections 14-15).
 
-## ETL Architecture
+## ETL Architecture (Phase 3: inspection complete)
 
-Not yet implemented. Planned shape (master_prompt.md section 11):
+Inspection tooling exists and has profiled all sources
+(docs/data-source-inventory.md). Planned shape (master_prompt.md section 11):
 
 raw sources → source adapters (`pipeline/sources/*.py`) → normalized records
 → sense identity → CEFR/frequency/WordNet/taxonomy/priority → embeddings →
 SQLite construction DB → PostgreSQL import. Large files streamed, checkpointed.
+
+Measured: the 2.7 GB Wiktextract dump streams at ~12k records/s here (full
+pass ≈ 15 min), 10,913,996 lines, 0 malformed. Known schema facts driving
+adapter design: Wiktextract translations are word-level (`code: "pl"`),
+senses carry glosses + tags; CEFR-J has slash-variant headwords; WordNet
+maps lemmas → sense ids → synsets.
 
 ## Search Architecture
 

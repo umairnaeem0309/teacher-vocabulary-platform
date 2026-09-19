@@ -64,14 +64,26 @@ Tests: tests/test_migrations.py, tests/test_constraints.py.
 ---
 
 ## Phase 3 — Source Data Inspection
-Status: TODO
+Status: **COMPLETE**
 
-- [ ] Streaming inspector for every dataset in data/raw/
-- [ ] Machine-readable + human-readable report: docs/data-source-inventory.md
-- [ ] Record format, size, counts, schema, fields, IDs, languages, anomalies
-- [ ] Commit
+- [x] Streaming inspector for every dataset in data/raw/ (pipeline/sources/)
+- [x] Machine-readable (data/source-inventory.json, Git-ignored) + human-readable (docs/data-source-inventory.md) reports
+- [x] Format, size, record counts, schemas, fields, languages, anomalies recorded for all 5 sources
+- [x] Full Wiktextract streaming pass: 10,913,996 lines, 0 malformed; English profile on 50k sample
+- [x] Inspector unit tests (synthetic fixtures): 6 tests
+- [x] Commit dated 2026-09-19 (+0500)
 
-Tests: inspector produces deterministic report fixtures.
+Key findings (full detail in docs/data-source-inventory.md):
+- Wiktextract: 1,492,836 English entries; avg 2.8 senses/word; 100% gloss
+  coverage in sample; Polish translation on 39.5% of words (avg 2.4 each);
+  word-level (not sense-level) translations → gloss-alignment heuristic
+  needed in Phase 5; rich tags (obsolete 7.3k, slang 5.9k in sample) feed flags.
+- CEFR-J: 7,799 rows A1–B2, 0 duplicate headword+POS pairs; 167 slash-variant
+  headwords need splitting.
+- Octanove: 2,136 rows C1/C2; 58 duplicate pairs; 2 malformed POS values.
+- NGSL: 2,809 lemmas, clean numeric data.
+- WordNet 2025: 107,519 synsets (100% with definitions), 128,009 lemmas,
+  88,075 hypernym relations.
 
 ---
 

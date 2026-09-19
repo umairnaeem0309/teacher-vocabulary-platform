@@ -36,6 +36,7 @@ data/intermediate/
 data/processed/
 data/embeddings/
 data/construction/
+data/source-inventory.json
 
 # --- SQLite construction databases ---
 *.sqlite

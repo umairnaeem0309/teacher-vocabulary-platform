@@ -87,9 +87,27 @@ Key findings (full detail in docs/data-source-inventory.md):
 
 ---
 
-## Phases 4–29 (queued; detailed tasks added as each starts)
+## Phase 4 — Source Adapters
+Status: **COMPLETE**
 
-4. Source adapters (wiktextract, cefrj, ngsl, octanove, wordnet) — tests per adapter
+- [x] Shared normalized record contract + AdapterRun statistics (pipeline/records.py, section 45)
+- [x] cefrj adapter (validation, slash-variant + duplicate warnings, exact provenance IDs)
+- [x] octanove adapter (missing-POS/duplicate warnings, C1/C2 scope enforcement)
+- [x] ngsl adapter (numeric validation, duplicate-lemma warnings)
+- [x] wiktextract adapter (streaming, English filter, sense/tag/translation extraction, malformed accounting)
+- [x] wordnet adapter (synsets, 16 typed relations, lemma→sense→synset links)
+- [x] 13 unit tests on synthetic fixtures; real-data smoke runs match Phase 3 inventory exactly
+- [x] Gates: pytest 59 passed; ruff/mypy clean
+- [x] Commit dated 2026-09-20 (+0500)
+
+Real-data verification: CEFR-J 7,799 processed/168 warnings; Octanove 2,136/61;
+NGSL 2,809/0; WordNet 107,519 synsets + 125,249 relations + 185,129 links/0
+failures; Wiktextract 100k-line sample: 10,869 processed, 89,131 non-English
+or unusable skipped, 0 failed.
+
+## Phases 5–29 (queued; detailed tasks added as each starts)
+
+5. Normalization (form/lemma/POS/sense/definition/translation; display vs search values; **translation sense-alignment heuristic decision required**)
 5. Normalization (form/lemma/POS/sense/definition/translation; display vs search values)
 6. Sense identity & deduplication (stable IDs; collision tests; BANK case)
 7. CEFR + frequency integration (evidence preservation, conflict handling)

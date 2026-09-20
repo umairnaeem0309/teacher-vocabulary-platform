@@ -1,14 +1,23 @@
 # Current State
 
-Last updated: after Phase 3 (see plan.md for phase list)
+Last updated: after Phase 4 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 3 — Source Data Inspection: **COMPLETE** (record below)
-Next: Phase 4 — Source Adapters
+Phase 4 — Source Adapters: **COMPLETE** (record below)
+Next: Phase 5 — Normalization
 
 ## Completed work
-Phase 3:
+Phase 4:
+- Shared normalized-record contract and AdapterRun stats (processed/skipped/
+  failed/warning/read) per section 45.
+- Five adapters, one module each (section 80): cefrj, octanove, ngsl
+  (exact CSV parsing with validation/warnings), wiktextract (streaming
+  English-entry extraction with senses/tags/Polish translations), wordnet
+  (synsets + 16 typed relation types + lemma links).
+- Real-data smoke verification against all five raw files; statistics match
+  the Phase 3 inventory exactly; nothing silently dropped.
+Phase 3 (unchanged):
 - Streaming inspectors for all 5 datasets (pipeline/sources/); unit tests
   with synthetic fixtures.
 - Full Wiktextract streaming pass (10,913,996 lines, 908s, 0 malformed) plus
@@ -41,8 +50,8 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 46 passed (health 5, envelope 8, middleware 6, settings 8,
-  migrations 4, constraints 9, source inspectors 6)
+- Backend pytest: 59 passed (health 5, envelope 8, middleware 6, settings 8,
+  migrations 4, constraints 9, inspectors 6, adapters 13)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (28 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)
@@ -80,9 +89,46 @@ Phase 1:
 - Development only. Deployment docs are a Phase 28 deliverable.
 
 ## Next task
-Phase 4: source adapters (wiktextract, cefrj, ngsl, octanove, wordnet), one
-module each, with per-adapter tests; normalized output schema defined in
-Phase 5 but adapter output validation starts now.
+Phase 5: normalization — define the normalized intermediate model, POS/
+form/lemma mapping, display-vs-search value separation, the documented
+translation sense-alignment heuristic (D-decision), and Unicode handling.
+
+---
+
+## Phase 4
+
+### Status
+COMPLETE
+
+### Implemented
+- pipeline/records.py (SourceCefrRecord etc. live in adapters; stats/run)
+- pipeline/sources/cefrj_adapter.py, octanove_adapter.py, ngsl_adapter.py,
+  wiktextract_adapter.py, wordnet_adapter.py
+
+### Tests
+- backend/tests/test_source_adapters.py (13 tests, synthetic fixtures)
+- Real-data smoke runs (manual, results recorded in plan.md)
+
+### Test Result
+PASS (59/59 backend; gates green)
+
+### Known Issues
+- pgvector pending (D004, needed Phase 12)
+- WordNet relation records reference synsets that may fall outside the
+  parsed set in later normalization — link resolution happens in Phase 8
+
+### Database Changes
+- None (adapters produce in-memory normalized records; SQLite construction
+  DB arrives with Phase 5/6 persistence)
+
+### Documentation Updated
+- plan.md, current-state.md
+
+### Git Commit
+feat: add source adapters for all five datasets (2026-09-20 +0500)
+
+### Next Phase
+Phase 5 — Normalization
 
 ---
 

@@ -105,9 +105,19 @@ NGSL 2,809/0; WordNet 107,519 synsets + 125,249 relations + 185,129 links/0
 failures; Wiktextract 100k-line sample: 10,869 processed, 89,131 non-English
 or unusable skipped, 0 failed.
 
-## Phases 5–29 (queued; detailed tasks added as each starts)
+## Phase 5 — Normalization
+Status: **COMPLETE**
 
-5. Normalization (form/lemma/POS/sense/definition/translation; display vs search values; **translation sense-alignment heuristic decision required**)
+- [x] Unicode/whitespace normalization with display-vs-search separation; NFD-invariant letters (ł, ø, ß…) handled (pipeline/normalize/clean.py)
+- [x] Cross-source POS mapping (CEFR-J/Octanove verb-phrases, Wiktextract tags, WordNet letters) — total mapping, unknown → other
+- [x] Gloss cleaning (qualifier parentheses, trailing markers); American-spelling preference helper
+- [x] D007 translation sense-alignment heuristic (inline/cognate/token/position; confidences 0.95/0.5/0.7/0.35; versioned align-v1) + docs/translation-alignment.md
+- [x] NormalizedSenseCandidate merge: Wiktextract senses + CEFR/frequency/WordNet word-level evidence attached, nothing discarded
+- [x] 31 unit tests incl. BANK case; real-data smoke: 150k dump lines → 47,327 candidates, 31.5% with PL, BANK → 42 senses correctly separated
+- [x] Gates: pytest 90 passed; ruff/mypy clean
+- [x] Commit dated 2026-09-21 (+0500)
+
+## Phases 6–29 (queued; detailed tasks added as each starts)
 5. Normalization (form/lemma/POS/sense/definition/translation; display vs search values)
 6. Sense identity & deduplication (stable IDs; collision tests; BANK case)
 7. CEFR + frequency integration (evidence preservation, conflict handling)

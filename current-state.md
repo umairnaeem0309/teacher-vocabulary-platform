@@ -1,14 +1,26 @@
 # Current State
 
-Last updated: after Phase 4 (see plan.md for phase list)
+Last updated: after Phase 5 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 4 — Source Adapters: **COMPLETE** (record below)
-Next: Phase 5 — Normalization
+Phase 5 — Normalization: **COMPLETE** (record below)
+Next: Phase 6 — Sense Identity
 
 ## Completed work
-Phase 4:
+Phase 5:
+- Normalization primitives: display vs search keys (NFC, casefold,
+  diacritics incl. NFD-invariant ł/ø/ß, punctuation), gloss cleaning,
+  American-spelling helper (section 81).
+- Total cross-source POS mapping (CEFR-J phrases, Wiktextract tags,
+  WordNet letters → canonical noun/verb/adjective/adverb/phrase/other).
+- D007: deterministic word→sense Polish translation alignment
+  (inline/cognate/token/position, versioned align-v1, confidences stored;
+  docs/translation-alignment.md).
+- NormalizedSenseCandidate merge producing Phase 6 input: Wiktextract
+  senses + aligned translations + word-level CEFR/frequency/WordNet
+  evidence; real-data smoke on 150k dump lines → 47,327 candidates.
+Phase 4 (unchanged):
 - Shared normalized-record contract and AdapterRun stats (processed/skipped/
   failed/warning/read) per section 45.
 - Five adapters, one module each (section 80): cefrj, octanove, ngsl
@@ -50,8 +62,9 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 59 passed (health 5, envelope 8, middleware 6, settings 8,
-  migrations 4, constraints 9, inspectors 6, adapters 13)
+- Backend pytest: 90 passed (health 5, envelope 8, middleware 6, settings 8,
+  migrations 4, constraints 9, inspectors 6, adapters 13, normalization 31,
+  +5 duplicated by parametrization)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (28 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)
@@ -89,9 +102,47 @@ Phase 1:
 - Development only. Deployment docs are a Phase 28 deliverable.
 
 ## Next task
-Phase 5: normalization — define the normalized intermediate model, POS/
-form/lemma mapping, display-vs-search value separation, the documented
-translation sense-alignment heuristic (D-decision), and Unicode handling.
+Phase 6: sense identity — stable sense_key schema, cross-source dedup,
+collision handling, BANK two-senses acceptance fixtures; the highest-
+priority data-quality phase (section 82).
+
+---
+
+## Phase 5
+
+### Status
+COMPLETE
+
+### Implemented
+- pipeline/normalize/clean.py, pos.py, align.py (D007), normalizer.py
+- docs/translation-alignment.md
+
+### Tests
+- backend/tests/test_normalization.py (31 tests)
+- Real-data smoke: 150k-line Wiktextract sample → 47,327 normalized
+  candidates; 31.5% senses with PL; BANK → 42 senses w/ cognate-only
+  translations on unrelated senses (correct)
+
+### Test Result
+PASS (90/90 backend; gates green)
+
+### Known Issues
+- pgvector pending (D004, needed Phase 12)
+- Position-fallback translations carry 0.35 confidence by design; some
+  misassignment is expected and marked — improvement path documented in D007
+
+### Database Changes
+- None yet (normalized candidates are in-memory; Phase 6 adds identity +
+  SQLite construction persistence)
+
+### Documentation Updated
+- plan.md, current-state.md, decision.md (D007), docs/translation-alignment.md
+
+### Git Commit
+feat: add normalization layer with translation alignment heuristic (2026-09-21 +0500)
+
+### Next Phase
+Phase 6 — Sense Identity
 
 ---
 

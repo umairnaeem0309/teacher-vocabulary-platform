@@ -164,3 +164,40 @@ application-level duplicate checks only (prohibited by section 28).
 
 ## Status
 Accepted
+
+---
+
+# Decision D007
+
+## Date
+2026-09-21
+
+## Decision
+Word-level Polish translations are aligned to senses with a deterministic
+four-tier heuristic (`align-v1`, pipeline/normalize/align.py, documented in
+docs/translation-alignment.md):
+
+1. inline gloss match (`(pl: ...)` in the gloss) - confidence 0.95
+2. cognate/common form (translation == headword) -> all senses - 0.50
+3. token evidence vs a sense's inline Polish hints - 0.70
+4. position fallback, round-robin, max 3 per sense - 0.35
+
+Every assignment stores its confidence and method. Leftovers beyond caps
+stay word-level on the entry; nothing is discarded silently.
+
+## Reason
+Phase 3 proved Wiktextract translations are word-level while the platform
+requires sense-level Polish (sections 9, 42). The heuristic is cheap,
+deterministic, LLM-free (sections 50, 139) and honest: low-confidence
+assignments are marked as such, and a future embedding-based re-assignment
+(Phase 12+) can supersede `align-v1` under a new version without touching
+sense identity.
+
+## Alternatives considered
+- Attach all translations to all senses (rejected: corrupts search/UI).
+- LLM classification per sense (rejected: prohibited scale, section 50).
+- Embedding similarity now (deferred: embeddings do not exist until
+  Phase 12; the heuristic is the documented interim mechanism).
+
+## Status
+Accepted

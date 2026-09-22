@@ -1,14 +1,21 @@
 # Current State
 
-Last updated: after Phase 5 (see plan.md for phase list)
+Last updated: after Phase 6 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 5 — Normalization: **COMPLETE** (record below)
-Next: Phase 6 — Sense Identity
+Phase 6 — Sense Identity: **COMPLETE** (record below)
+Next: Phase 7 — CEFR and Frequency Integration
 
 ## Completed work
-Phase 5:
+Phase 6:
+- Sense identity layer (pipeline/identity/identity.py): (word, POS) groups,
+  gloss-token clustering with anti-over-merge bias, stable unique
+  sense_key format (sensekey-v1, D008), provenance/evidence-union on merge.
+- docs/sense-identity.md documenting rules, key format and measured results.
+- Real-data smoke: 47,327 candidates → 41,686 master senses, 0 collisions,
+  BANK acceptance verified on real data.
+Phase 5 (unchanged):
 - Normalization primitives: display vs search keys (NFC, casefold,
   diacritics incl. NFD-invariant ł/ø/ß, punctuation), gloss cleaning,
   American-spelling helper (section 81).
@@ -62,9 +69,9 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 90 passed (health 5, envelope 8, middleware 6, settings 8,
+- Backend pytest: 105 passed (health 5, envelope 8, middleware 6, settings 8,
   migrations 4, constraints 9, inspectors 6, adapters 13, normalization 31,
-  +5 duplicated by parametrization)
+  identity 15, +8 from parametrization)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (28 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)
@@ -102,9 +109,46 @@ Phase 1:
 - Development only. Deployment docs are a Phase 28 deliverable.
 
 ## Next task
-Phase 6: sense identity — stable sense_key schema, cross-source dedup,
-collision handling, BANK two-senses acceptance fixtures; the highest-
-priority data-quality phase (section 82).
+Phase 7: CEFR + frequency integration — evidence reconciliation into
+normalized values with confidence, conflict preservation (section 14),
+NGSL dedup rule; tests for A1–C2/unknown/multi-source conflicts.
+
+---
+
+## Phase 6
+
+### Status
+COMPLETE
+
+### Implemented
+- pipeline/identity/identity.py (clustering, keys, merge)
+- docs/sense-identity.md; D008 in decision.md
+
+### Tests
+- backend/tests/test_sense_identity.py (15 tests incl. BANK acceptance)
+- Real-data smoke (results in plan.md and docs/sense-identity.md)
+
+### Test Result
+PASS (105/105 backend; gates green)
+
+### Known Issues
+- pgvector pending (D004, needed Phase 12)
+- Lexical clustering cannot merge paraphrases with disjoint vocabulary —
+  safe direction (extra senses, not lost meanings); revisit with WordNet
+  (Phase 8) and embeddings (Phase 12) under a new key version if needed
+
+### Database Changes
+- None yet (master senses still in-memory; SQLite persistence in Phase 7
+  construction step)
+
+### Documentation Updated
+- plan.md, current-state.md, decision.md (D008), docs/sense-identity.md
+
+### Git Commit
+feat: add sense identity resolution with stable keys (2026-09-22 +0500)
+
+### Next Phase
+Phase 7 — CEFR and Frequency Integration
 
 ---
 

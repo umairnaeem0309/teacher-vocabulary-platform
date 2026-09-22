@@ -201,3 +201,47 @@ sense identity.
 
 ## Status
 Accepted
+
+---
+
+# Decision D008
+
+## Date
+2026-09-22
+
+## Decision
+Sense identity model (`sensekey-v1`, pipeline/identity/identity.py):
+
+1. Identity groups are (headword_search, pos_canonical); meaning is
+   resolved within the group by gloss comparison - never by spelling
+   alone (section 9).
+2. Two glosses denote the same sense when their significant-token sets
+   (stopwords removed, synonyms canonicalized) are equal, in a
+   subset relation (smaller side >= 2 tokens), or Jaccard >= 0.75
+   (0.6 with equal counts). Bias: never over-merge - all other cases
+   stay distinct senses.
+3. sense_key = `{word}|{pos}|{digest12}` with a 48-bit blake2b digest of
+   the sorted token tuple. Measured: 41,686 senses -> 0 collisions.
+   Residual collisions (probabilistically ~0.04% at 500k senses) are
+   eliminated by deterministic `-2`, `-3`... suffixing at resolution
+   time, so keys are always unique.
+4. Merged senses union provenance, translations (best confidence wins),
+   CEFR/frequency evidence and WordNet links, deduped.
+
+## Reason
+Sections 82 and 25-26 require the same sense found through any source,
+search or category to resolve to one master record while genuinely
+different senses stay separate. Gloss-token similarity is deterministic,
+cheap and observable; the subset rule reflects how real dictionaries
+restate the same gloss at different lengths.
+
+## Alternatives considered
+- WordNet synset as primary identity (insufficient coverage; Wiktextract
+  senses often have no synset match).
+- Embedding similarity clustering now (deferred: embeddings arrive in
+  Phase 12; current rule is deterministic and testable first).
+- One digest per gloss text instead of token set (rejected: would not
+  merge synonym-restated glosses).
+
+## Status
+Accepted

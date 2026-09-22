@@ -117,7 +117,19 @@ Status: **COMPLETE**
 - [x] Gates: pytest 90 passed; ruff/mypy clean
 - [x] Commit dated 2026-09-21 (+0500)
 
-## Phases 6–29 (queued; detailed tasks added as each starts)
+## Phase 6 — Sense Identity
+Status: **COMPLETE**
+
+- [x] Deterministic identity: (word, POS) groups + gloss-token clustering (equal/subset/Jaccard tiers; bias against over-merging) — D008
+- [x] Stable unique sense_key `{word}|{pos}|digest12}` with guaranteed-collision-free resolution
+- [x] Merged senses union provenance, translations, CEFR/frequency/WordNet evidence (deduped)
+- [x] Tests (15): BANK two-senses acceptance, cross-source BANK merge, subset merge, genuine-difference, cross-POS separation, evidence union, determinism
+- [x] Real-data smoke: 47,327 candidates → 41,686 master senses (11.9% dedup), 0 key collisions, BANK-noun → 28 senses (financial & river separate)
+- [x] docs/sense-identity.md; D008 in decision.md
+- [x] Gates: pytest 105 passed; ruff/mypy clean
+- [x] Commit dated 2026-09-22 (+0500)
+
+## Phases 7–29 (queued; detailed tasks added as each starts)
 5. Normalization (form/lemma/POS/sense/definition/translation; display vs search values)
 6. Sense identity & deduplication (stable IDs; collision tests; BANK case)
 7. CEFR + frequency integration (evidence preservation, conflict handling)

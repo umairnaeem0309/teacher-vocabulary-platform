@@ -245,3 +245,42 @@ restate the same gloss at different lengths.
 
 ## Status
 Accepted
+
+---
+
+# Decision D009
+
+## Date
+2026-09-23
+
+## Decision
+CEFR and frequency reconciliation (pipeline/enrich/):
+
+1. CEFR evidence is POS-aware: evidence whose POS maps to the sense's
+   canonical POS drives the normalized value; mismatched evidence is
+   downgraded but kept.
+2. Agreement: single source -> 0.85, unanimous multi-source -> 0.95.
+   Conflict -> higher level wins with confidence 0.50 and
+   cefr_conflict = 1 (visible, never discarded - section 14).
+3. No evidence -> NULL with confidence 0 (never invented, section 108).
+4. Frequency: best (lowest) NGSL rank wins; duplicates counted in the
+   report. frequency_band (top1000/top2000/top3000/beyond) is display
+   metadata only - never the priority score (sections 15-16).
+5. Results persist to the SQLite construction DB (pipeline/storage/) with
+   idempotent batched upserts and a QC summary computed from stored rows.
+
+## Reason
+Section 14 demands source evidence be preserved and normalized values only
+where defensible; picking the higher level on conflict is the safe teaching
+direction (overestimating difficulty delays a word; underestimating it
+teaches it too early) while the conflict flag keeps the disagreement
+auditable. Frequency stays separate from priority by design.
+
+## Alternatives considered
+- Weighted-average CEFR mapping (rejected: invents levels that exist in no
+  source, violates section 14).
+- Lower level wins on conflict (rejected: wrong teaching direction).
+- Store bands only, drop raw ranks (rejected: rank is objective evidence).
+
+## Status
+Accepted

@@ -1,14 +1,21 @@
 # Current State
 
-Last updated: after Phase 6 (see plan.md for phase list)
+Last updated: after Phase 7 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 6 — Sense Identity: **COMPLETE** (record below)
-Next: Phase 7 — CEFR and Frequency Integration
+Phase 7 — CEFR and Frequency Integration: **COMPLETE** (record below)
+Next: Phase 8 — WordNet and Semantic Relationships
 
 ## Completed work
-Phase 6:
+Phase 7:
+- CEFR reconciliation (D009): POS-aware, single/unanimous/conflict tiers,
+  conflicts preserved with flags (970 in sample), unknown stays unknown.
+- Frequency: best-rank dedup + bands (display metadata only, separate from
+  priority per sections 15–16).
+- SQLite construction DB (pipeline/storage/): batched idempotent upserts,
+  run log, QC summary; 41,690 senses persisted from the 150k-line sample.
+Phase 6 (unchanged):
 - Sense identity layer (pipeline/identity/identity.py): (word, POS) groups,
   gloss-token clustering with anti-over-merge bias, stable unique
   sense_key format (sensekey-v1, D008), provenance/evidence-union on merge.
@@ -69,9 +76,7 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 105 passed (health 5, envelope 8, middleware 6, settings 8,
-  migrations 4, constraints 9, inspectors 6, adapters 13, normalization 31,
-  identity 15, +8 from parametrization)
+- Backend pytest: 122 passed (+17 enrichment/store)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (28 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)
@@ -96,11 +101,12 @@ Phase 1:
 
 ## Data state
 - Raw datasets present and immutable under `data/raw/` (Git-ignored,
-  documented in data/raw/README.md). No processing has started.
+  documented in data/raw/README.md).
+- Pipeline (150k-line Wiktextract sample = ~1.4% of dump): adapters →
+  normalize → identity → enrich → SQLite construction DB. 41,690 master
+  senses persisted; CEFR 57.9%, frequency 41.2%, Polish 31.6%, examples
+  60.3%; 970 CEFR conflicts preserved with flags. QC via store.qc_summary().
 - **Inspected** (Phase 3): full inventory in docs/data-source-inventory.md.
-  Key facts: 1.49M English entries in Wiktextract (2.8 senses/word avg);
-  Polish translations word-level on 39.5% of words; CEFR A1–B2 (7,799) +
-  C1/C2 (2,136); NGSL frequency (2,809); WordNet 107,519 synsets.
 
 ## Search state
 - Not implemented (Phase 14). Search router registered as 501 stub.
@@ -109,9 +115,43 @@ Phase 1:
 - Development only. Deployment docs are a Phase 28 deliverable.
 
 ## Next task
-Phase 7: CEFR + frequency integration — evidence reconciliation into
-normalized values with confidence, conflict preservation (section 14),
-NGSL dedup rule; tests for A1–C2/unknown/multi-source conflicts.
+Phase 8: WordNet integration — load synsets/relations/links into
+construction DB, link master senses via wordnet_links (lemma+POS),
+reserve semantic relations for retrieval/taxonomy use (sections 84, 50).
+
+---
+
+## Phase 7
+
+### Status
+COMPLETE
+
+### Implemented
+- pipeline/enrich/cefr.py, frequency.py, applier.py
+- pipeline/storage/sqlite_store.py (construction DB)
+
+### Tests
+- backend/tests/test_enrichment.py (17 tests)
+
+### Test Result
+PASS (122/122 backend; gates green)
+
+### Known Issues
+- pgvector pending (D004, needed Phase 12)
+- CEFR POS-mismatch evidence downgraded but kept — rule documented (D009)
+
+### Database Changes
+- SQLite construction DB created at data/construction/construction.sqlite
+  (pipeline workbench only — production PostgreSQL schema unchanged)
+
+### Documentation Updated
+- plan.md, current-state.md, decision.md (D009)
+
+### Git Commit
+feat: add CEFR and frequency enrichment with construction DB (2026-09-23 +0500)
+
+### Next Phase
+Phase 8 — WordNet and Semantic Relationships
 
 ---
 

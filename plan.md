@@ -129,7 +129,19 @@ Status: **COMPLETE**
 - [x] Gates: pytest 105 passed; ruff/mypy clean
 - [x] Commit dated 2026-09-22 (+0500)
 
-## Phases 7–29 (queued; detailed tasks added as each starts)
+## Phase 7 — CEFR and Frequency Integration
+Status: **COMPLETE**
+
+- [x] CEFR reconciliation: POS-aware evidence, single/unanimous/conflict tiers (0.85/0.95/0.50), higher-level-on-conflict + conflict flag, unknown stays NULL — D009
+- [x] Frequency integration: best-rank dedup, frequency bands as display metadata only (separate from priority)
+- [x] Enrichment applier + report (levels distribution, conflict/unknown counts)
+- [x] SQLite construction DB: idempotent batched upserts, run log, QC summary computed from stored data
+- [x] Tests (17): A1–C2 parametrized, unknown, POS-mismatch, conflict flagging, band boundaries, duplicate counting, SQLite roundtrip/idempotence
+- [x] Real-data smoke: 41,690 senses; CEFR 57.9% (A1 8,230 / A2 5,019 / B1 5,481 / B2 4,037 / C1 858 / C2 512), 970 conflicts preserved; freq 41.2%; PL 31.6%
+- [x] Gates: pytest 122 passed; ruff/mypy clean
+- [x] Commit dated 2026-09-23 (+0500)
+
+## Phases 8–29 (queued; detailed tasks added as each starts)
 5. Normalization (form/lemma/POS/sense/definition/translation; display vs search values)
 6. Sense identity & deduplication (stable IDs; collision tests; BANK case)
 7. CEFR + frequency integration (evidence preservation, conflict handling)

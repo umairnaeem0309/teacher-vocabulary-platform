@@ -6,6 +6,10 @@ dedup debugging, QC and reproducible re-processing (section 44).
 Schema is pipeline-private (keyed by sense_key, versioned) and deliberately
 simpler than PostgreSQL's normalized schema: it stores what QC needs.
 Batched inserts keep memory bounded (sections 48, 125).
+
+Phase 8 adds the WordNet catalog (synsets + grouped relations) and the
+resolved sense→synset links; ids are WordNet's own so the PostgreSQL
+import can join back to the same source of truth (D010).
 """
 
 from __future__ import annotations
@@ -13,6 +17,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS master_senses (
@@ -60,6 +65,33 @@ CREATE TABLE IF NOT EXISTS sense_frequency_evidence (
     PRIMARY KEY (sense_key, source)
 );
 
+CREATE TABLE IF NOT EXISTS wordnet_synsets (
+    synset_id  TEXT PRIMARY KEY,
+    part_of_speech TEXT NOT NULL,
+    definition TEXT,
+    ili        TEXT,
+    examples_json TEXT
+);
+
+CREATE TABLE IF NOT EXISTS wordnet_relations (
+    from_synset_id TEXT NOT NULL REFERENCES wordnet_synsets(synset_id) ON DELETE CASCADE,
+    to_synset_id   TEXT NOT NULL REFERENCES wordnet_synsets(synset_id) ON DELETE CASCADE,
+    relation   TEXT NOT NULL,
+    PRIMARY KEY (from_synset_id, to_synset_id, relation)
+);
+CREATE INDEX IF NOT EXISTS ix_wn_rel_from ON wordnet_relations(from_synset_id);
+CREATE INDEX IF NOT EXISTS ix_wn_rel_to   ON wordnet_relations(to_synset_id);
+
+CREATE TABLE IF NOT EXISTS sense_wordnet_links (
+    sense_key  TEXT NOT NULL REFERENCES master_senses(sense_key) ON DELETE CASCADE,
+    synset_id  TEXT NOT NULL REFERENCES wordnet_synsets(synset_id) ON DELETE CASCADE,
+    confidence REAL NOT NULL,
+    method     TEXT NOT NULL,
+    wn_sense_id TEXT,
+    PRIMARY KEY (sense_key, synset_id)
+);
+CREATE INDEX IF NOT EXISTS ix_swl_synset ON sense_wordnet_links(synset_id);
+
 CREATE TABLE IF NOT EXISTS pipeline_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT NOT NULL,
@@ -90,7 +122,7 @@ class ConstructionStore:
             (processing_version,),
         )
         self.conn.commit()
-        return int(cur.lastrowid)
+        return int(cur.lastrowid or 0)
 
     def finish_run(self, run_id: int, stats: dict) -> None:
         self.conn.execute(
@@ -160,8 +192,79 @@ class ConstructionStore:
             total += len(batch)
         return total
 
+    def upsert_wordnet(
+        self,
+        catalog: Any,
+        links: dict[str, list],
+        batch_size: int = 5000,
+    ) -> int:
+        """Store the synset catalog + resolved sense links.
+
+        Idempotent: replaces synset rows and relation edges on conflict;
+        sense links accumulate with INSERT OR IGNORE. Returns total rows
+        written (synsets + relations + links).
+        """
+        total = 0
+        synsets = sorted(catalog.synsets.values(), key=lambda s: s.synset_id)
+        for start in range(0, len(synsets), batch_size):
+            batch = synsets[start:start + batch_size]
+            self.conn.executemany(
+                "INSERT OR REPLACE INTO wordnet_synsets "
+                "(synset_id, part_of_speech, definition, ili, examples_json) "
+                "VALUES (?,?,?,?,?)",
+                [
+                    (
+                        s.synset_id, s.part_of_speech, s.definition, s.ili,
+                        json.dumps(s.examples, ensure_ascii=False),
+                    )
+                    for s in batch
+                ],
+            )
+            self.conn.commit()
+            total += len(batch)
+
+        self.conn.executemany(
+            "INSERT OR IGNORE INTO wordnet_relations "
+            "(from_synset_id, to_synset_id, relation) VALUES (?,?,?)",
+            [
+                (r.from_synset_id, r.to_synset_id, r.relation)
+                for r in catalog.relations
+            ],
+        )
+        self.conn.commit()
+        total += len(catalog.relations)
+
+        link_rows = [
+            (link.sense_key, link.synset_id, link.confidence, link.method,
+             link.wn_sense_id)
+            for links in links.values() for link in links
+        ]
+        for start in range(0, len(link_rows), batch_size):
+            batch = link_rows[start:start + batch_size]
+            self.conn.executemany(
+                "INSERT OR IGNORE INTO sense_wordnet_links "
+                "(sense_key, synset_id, confidence, method, wn_sense_id) "
+                "VALUES (?,?,?,?,?)",
+                batch,
+            )
+            self.conn.commit()
+            total += len(batch)
+        return total
+
     def count_senses(self) -> int:
         return int(self.conn.execute("SELECT COUNT(*) FROM master_senses").fetchone()[0])
+
+    def count_wordnet(self) -> dict:
+        """Row counts for the WordNet tables (QC, §126)."""
+        q = lambda sql: int(self.conn.execute(sql).fetchone()[0])  # noqa: E731
+        return {
+            "synsets": q("SELECT COUNT(*) FROM wordnet_synsets"),
+            "relations": q("SELECT COUNT(*) FROM wordnet_relations"),
+            "sense_links": q("SELECT COUNT(*) FROM sense_wordnet_links"),
+            "linked_senses": q(
+                "SELECT COUNT(DISTINCT sense_key) FROM sense_wordnet_links"
+            ),
+        }
 
     def count_translations(self) -> int:
         return int(
@@ -184,5 +287,8 @@ class ConstructionStore:
             ),
             "with_examples": q(
                 "SELECT COUNT(*) FROM master_senses WHERE examples_json != '[]'"
+            ),
+            "with_wordnet": q(
+                "SELECT COUNT(DISTINCT sense_key) FROM sense_wordnet_links"
             ),
         }

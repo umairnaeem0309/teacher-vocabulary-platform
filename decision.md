@@ -284,3 +284,66 @@ auditable. Frequency stays separate from priority by design.
 
 ## Status
 Accepted
+
+# Decision D010
+
+**Title:** WordNet sense linking policy (wnlink-v1)
+
+**Date:** 2026-09-24
+
+## Context
+
+Phase 8 (sections 16, 84) requires integrating the supplied WordNet 2025
+data: preserve relationships where useful (synonym, hypernym, hyponym,
+related concept) and link master senses to synsets, without forcing every
+relation into the UI. WordNet entry links are word-level (lemma, POS,
+synset), while our senses are sense-level — linking must disambiguate.
+
+## Decision
+
+1. Relations are normalized into four groups for use: synonym (from
+   `similar`), hypernym (+ instance hypernym), hyponym (+ instance
+   hyponym), related (part/whole, derivation, cause, entailment, domain).
+   Unknown relation types are preserved verbatim (nothing silently
+   dropped, section 48). Reverse edges are not invented.
+2. The full catalog (107,519 synsets, 125,249 relations) is stored in the
+   construction DB keyed by WordNet's own synset ids, so the PostgreSQL
+   import (Phase 13) can join back to the same source of truth.
+3. Sense→synset linking is POS-gated and deterministic (wnlink-v1):
+   - exactly one candidate synset for (lemma, POS): WordNet's own
+     assertion carries the link (`monosemous`, 0.80; `sense-id`, 0.85 if
+     the synset body is absent);
+   - several candidates: definition similarity (D008 token rules + light
+     English inflection stemmer), unique best >= 0.60 links
+     (`definition-match`, score as confidence);
+   - otherwise: unique argmax with >= 2 shared significant tokens
+     (definition or WordNet members, headword excluded) links as
+     `shared-tokens` (0.70).
+4. Never fabricate a link: missing evidence, POS mismatch, ambiguity
+   (tied best candidates) and weak signal all leave the sense unlinked
+   and are counted in the QC report. Confidence < 0.80 marks heuristic
+   links; the retrieval phase may weight or ignore them.
+
+## Reason
+
+WordNet's own entry assertion is strong when unambiguous; gloss overlap
+alone is too weak across sources (Wiktionary wording vs WordNet wording),
+so synonym-enumeration glosses are matched against WordNet members too.
+The bias against over-merging (D008 spirit) applies to linking: a guessed
+link is worse than no link, and every miss is counted, not hidden.
+
+## Alternatives considered
+
+- Link every sense to all entry synsets of the headword (rejected:
+  destroys sense-level precision; a teacher showing "bank finances" the
+  river-bank taxonomy is wrong).
+- Embedding-based similarity (rejected for this phase: deterministic,
+  reproducible and cheap was the goal; embeddings arrive in Phase 12 and
+  may refine linking later as a new version).
+- Drop `shared-tokens` tier (rejected: 3,954 additional valid links at a
+  marked 0.70 confidence; the near-field sibling risk is documented and
+  weighted at retrieval time).
+
+## Status
+
+Accepted

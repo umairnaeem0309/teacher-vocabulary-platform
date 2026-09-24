@@ -103,6 +103,21 @@ adapter design: Wiktextract translations are word-level (`code: "pl"`),
 senses carry glosses + tags; CEFR-J has slash-variant headwords; WordNet
 maps lemmas → sense ids → synsets.
 
+### WordNet layer (Phase 8, D010)
+
+`pipeline/enrich/wordnet.py` builds a synset catalog (107,519 synsets,
+125,249 relations) stored in the construction DB under WordNet's own ids —
+the Phase 13 PostgreSQL import joins the same identifiers into
+`wordnet_synsets` / `wordnet_relations` / `sense_wordnet_links`. Relations
+are grouped synonym / hypernym / hyponym / related for retrieval and
+taxonomy use; the UI is never forced to show raw relation types (§84).
+Sense→synset linking (`wnlink-v1`) is POS-gated and deterministic:
+WordNet's own monosemous assertion (0.80), definition-match via D008 token
+rules + a light inflection stemmer (≥ 0.60), or a unique ≥ 2 shared-token
+argmax over definition/members (0.70). Ambiguity never links — misses are
+counted, not guessed. Currently 13,259 / 41,690 senses (31.8%) linked on
+the construction sample; heuristic 0.70 links may be weighted at retrieval.
+
 ## Search Architecture
 
 Not yet implemented (Phase 14). Planned: 4 layers — exact/text (PostgreSQL

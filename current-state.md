@@ -1,13 +1,29 @@
 # Current State
 
-Last updated: after Phase 7 (see plan.md for phase list)
+Last updated: after Phase 8 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 7 — CEFR and Frequency Integration: **COMPLETE** (record below)
-Next: Phase 8 — WordNet and Semantic Relationships
+Phase 8 — WordNet and Semantic Relationships: **COMPLETE** (record below)
+Next: Phase 9 — Thematic Taxonomy
 
 ## Completed work
+Phase 8:
+- Synset catalog in construction DB (pipeline/enrich/wordnet.py +
+  pipeline/storage/sqlite_store.py): 107,519 synsets, 125,249 relations
+  grouped synonym/hypernym/hyponym/related (unknown types preserved
+  verbatim, no reverse edges invented), keyed by WordNet's own synset ids
+  so the Phase 13 PostgreSQL import joins the same source of truth (D010).
+- Sense→synset linking (wnlink-v1): POS-gated + deterministic —
+  monosemous WordNet assertion 0.80, definition-match (D008 token rules +
+  light inflection stemmer) ≥ 0.60, shared-tokens tier 0.70 (definition or
+  WordNet members, headword excluded); missing/ambiguous evidence never
+  links, every miss is counted in the QC report.
+- Real-data smoke (scripts/phase8_wordnet_smoke.py): 41,690 senses →
+  13,259 linked (31.8%); per-POS noun 38.8% / verb 26.8% / adj 33.9% /
+  adv 39.2%; per-CEFR A1 26.5% → C2 37.5%; representative senses verified
+  (bank-financial → financial institution, quickly → with speed,
+  bright → emitting light; heuristic 0.70 near-field siblings documented).
 Phase 7:
 - CEFR reconciliation (D009): POS-aware, single/unanimous/conflict tiers,
   conflicts preserved with flags (970 in sample), unknown stays unknown.
@@ -76,9 +92,9 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 122 passed (+17 enrichment/store)
+- Backend pytest: 147 passed (+25 WordNet)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
-- Quality gates: ruff clean, mypy clean (28 files), tsc clean, eslint clean,
+- Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)
 - Live HTTP smoke: X-Request-ID on responses; 404/501 envelopes; access log
   lines with correlation IDs; `health` reports `database: up` when DB reachable

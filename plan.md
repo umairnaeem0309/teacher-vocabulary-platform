@@ -141,11 +141,26 @@ Status: **COMPLETE**
 - [x] Gates: pytest 122 passed; ruff/mypy clean
 - [x] Commit dated 2026-09-23 (+0500)
 
-## Phases 8–29 (queued; detailed tasks added as each starts)
-5. Normalization (form/lemma/POS/sense/definition/translation; display vs search values)
-6. Sense identity & deduplication (stable IDs; collision tests; BANK case)
-7. CEFR + frequency integration (evidence preservation, conflict handling)
-8. WordNet semantic relationships
+## Phase 8 — WordNet and Semantic Relationships
+Status: **COMPLETE**
+
+- [x] Synset catalog: 107,519 synsets + 125,249 relations grouped synonym /
+  hypernym / hyponym / related (unknown types preserved verbatim, no reverse
+  edges invented); stored in construction DB keyed by WordNet's own ids (D010)
+- [x] Sense linking (wnlink-v1): POS-gated, deterministic — monosemous
+  assertion 0.80, definition-match (D008 tokens + light stemmer) ≥ 0.60,
+  shared-tokens tier 0.70; never fabricate, all misses counted
+- [x] Construction DB: wordnet_synsets / wordnet_relations /
+  sense_wordnet_links tables, idempotent upserts, QC counters
+- [x] Tests (25): relation grouping, catalog dedup, POS gating (incl. `n-1`
+  suffix and satellite `s`), ambiguity ties, stemmer chains, SQLite roundtrip
+- [x] Real-data smoke: 41,690 senses → 13,259 linked (31.8%); per-POS noun
+  38.8% / verb 26.8% / adj 33.9% / adv 39.2%; per-CEFR A1 26.5% → C2 37.5%;
+  representative-sense spot-checks (bank, bright, quickly) correct
+- [x] Gates: pytest 147 passed; ruff/mypy clean
+- [x] Commit dated 2026-09-24 (+0500)
+
+## Phases 9–29 (queued; detailed tasks added as each starts)
 9. Thematic taxonomy (deterministic mapping, multi-category)
 10. Vocabulary priority (documented deterministic formula, versioned)
 11. Examples & quality indicators

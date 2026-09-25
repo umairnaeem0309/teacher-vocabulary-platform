@@ -66,12 +66,12 @@ class TestTaxonomyStructure:
         assert len(tops) == 24
 
     def test_version_is_stable_string(self) -> None:
-        assert TAXONOMY_VERSION == "tax-v1"
+        assert TAXONOMY_VERSION == "tax-v1.2"
 
 
 class TestHeadwordTier:
     def test_airport_headword_tier(self) -> None:
-        assigns, _ = classify_senses([_master("airport", "a place where planes land")])
+        assigns, _ = classify_senses([_master("airport", "a place where air travel operates")])
         rows = assigns["airport|noun|test"]
         travel = [a for a in rows if a.category_key == "travel"]
         assert {(a.category_key, a.subcategory_key) for a in travel} == {
@@ -81,12 +81,12 @@ class TestHeadwordTier:
         assert all(a.confidence == 0.90 and a.method == "headword" for a in travel)
 
     def test_hotel(self) -> None:
-        assigns, _ = classify_senses([_master("hotel", "establishment providing lodging")])
+        assigns, _ = classify_senses([_master("hotel", "an establishment providing lodging")])
         keys = {(a.category_key, a.subcategory_key) for a in assigns["hotel|noun|test"]}
         assert ("travel", "travel-hotels") in keys
 
     def test_garden(self) -> None:
-        assigns, _ = classify_senses([_master("garden", "outdoor space with plants")])
+        assigns, _ = classify_senses([_master("garden", "an outdoor space where plants are grown")])
         keys = {(a.category_key, a.subcategory_key) for a in assigns["garden|noun|test"]}
         assert ("home-housing", "home-gardening") in keys
 
@@ -100,6 +100,21 @@ class TestHeadwordTier:
         )
         assert sub.method == "headword" and sub.confidence == 0.90
 
+    def test_polysemous_keyword_without_meaning_evidence_stays_uncategorized(self) -> None:
+        # v1.2 audit fix: 'fast' is a diet keyword, but this sense is
+        # about photography — no same-category gloss evidence, no assign.
+        s = _master("fast", "more sensitive to light than average")
+        assigns, _ = classify_senses([s])
+        cats = {a.category_key for a in assigns.get("fast|noun|test", [])}
+        assert "food-cooking" not in cats
+
+    def test_polysemous_keyword_with_meaning_evidence_assigns(self) -> None:
+        # 'train' + fitness meaning in the gloss -> corroborated.
+        s = _master("train", "to practise and exercise to prepare for a match")
+        assigns, _ = classify_senses([s])
+        keys = {(a.category_key, a.subcategory_key) for a in assigns["train|noun|test"]}
+        assert ("sports", "sport-fitness") in keys
+
 
 class TestGlossTier:
     def test_multi_keyword_gloss_assigns_sub(self) -> None:
@@ -110,20 +125,17 @@ class TestGlossTier:
         assert ("travel", "travel-documents") in keys
         assert ("travel", None) in keys
 
-    def test_single_keyword_gloss_lower_confidence(self) -> None:
-        # headword 'foyer' is not a keyword; gloss has exactly one hotel
-        # keyword ('reception').
+    def test_single_keyword_gloss_does_not_assign(self) -> None:
+        # v1.1: single-keyword gloss hits are noise (D011 audit) and no
+        # longer produce assignments.
         s = _master("foyer", "a lobby with a reception desk")
         assigns, _ = classify_senses([s])
-        sub = next(
-            a for a in assigns["foyer|noun|test"]
-            if a.subcategory_key == "travel-hotels"
-        )
-        assert sub.confidence == 0.65 and sub.method == "gloss"
+        assert not assigns
 
     def test_multi_category_sense(self) -> None:
-        # gloss mentions flight (travel) and train (transportation)
-        s = _master("connection", "a flight or train departing soon after another arrives")
+        # gloss has 2 hotel keywords (travel) and 2 road-traffic keywords
+        # (transportation); 'connection' is not a keyword anywhere.
+        s = _master("connection", "a hotel booking beside a busy traffic junction")
         assigns, report = classify_senses([s])
         cats = {a.category_key for a in assigns["connection|noun|test"]}
         assert {"travel", "transportation"} <= cats
@@ -202,7 +214,7 @@ class TestDeterminismAndReport:
 
     def test_report_counts(self) -> None:
         senses = [
-            _master("airport", "a place where planes land"),
+            _master("airport", "an air travel terminal where planes land"),
             _master("whatsit", "a gadget whose name one has forgotten"),
         ]
         _, report = classify_senses(senses)
@@ -211,18 +223,18 @@ class TestDeterminismAndReport:
         assert d["senses_categorized"] == 1
         assert d["uncategorized"] == 1
         assert d["assignments_created"] >= 2
-        assert d["version"] == "tax-v1"
+        assert d["version"] == "tax-v1.2"
 
     def test_spec_words_classified(self) -> None:
         """Spec §85 test list: travel/cooking/airport/hotel/personality/
         business/health."""
         cases = [
-            ("travel", "going abroad for a vacation and tourism"),
+            ("travel", "going abroad on a journey for tourism"),
             ("cook", "to prepare food by heating it in a pan"),
-            ("airport", "where planes take off and land"),
-            ("hotel", "lodging for travellers with booked rooms"),
+            ("airport", "an air travel terminal where planes take off"),
+            ("hotel", "travel lodging with rooms for booking"),
             ("generous", "a kind personality trait, happy to give"),
-            ("business", "a company that sells goods for profit"),
+            ("business", "a company that sells goods for commercial profit"),
             ("health", "being free from illness and disease"),
         ]
         senses = [_master(w, g) for w, g in cases]
@@ -244,7 +256,7 @@ class TestDeterminismAndReport:
 class TestTaxonomyStore:
     def test_nodes_and_assignments_roundtrip(self, tmp_path) -> None:
         store = ConstructionStore(tmp_path / "c.sqlite")
-        senses = [_master("airport", "a place where planes land")]
+        senses = [_master("airport", "an air travel terminal where planes land")]
         store.upsert_senses([_E(s) for s in senses])
         assigns, _ = classify_senses(senses)
         nodes = taxonomy_nodes()
@@ -265,7 +277,7 @@ class TestTaxonomyStore:
 
     def test_idempotent_reupsert(self, tmp_path) -> None:
         store = ConstructionStore(tmp_path / "c.sqlite")
-        senses = [_master("airport", "a place where planes land")]
+        senses = [_master("airport", "an air travel terminal where planes land")]
         store.upsert_senses([_E(s) for s in senses])
         store.upsert_taxonomy_nodes(taxonomy_nodes())
         assigns, _ = classify_senses(senses)

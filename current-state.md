@@ -8,6 +8,19 @@ Phase 9 — Thematic Taxonomy: **COMPLETE** (record below)
 Next: Phase 10 — Vocabulary Priority
 
 ## Completed work
+Phase 9 (audit + fixes):
+- D011 addendum: random-sample precision audit of taxonomy surfaced four
+  defect classes — single-keyword gloss noise (0.65 tier removed), prone
+  polysemous keywords (water/flight/score/wake/run pruned), shared-stemmer
+  over-stemming of short words (dose→do; fixed with ≥ 3-char guard,
+  wnlink-v1.1), and headword-tier word-level misassignment (fast
+  "light-sensitive" → food-diets; fixed by requiring same-category gloss
+  corroboration with headword-stem exclusion, tax-v1.2).
+- Final real-data numbers: 7,702/41,690 senses categorized (18.5% vs the
+  pre-audit 60.1%), 12,599 assignments, 2,196 multi-category, all 24
+  categories populated, audited sub-level sample clean. Precision over
+  coverage for teacher-facing filters; coverage grows with future
+  evidence-driven version bumps.
 Phase 9:
 - Deterministic thematic taxonomy (pipeline/enrich/taxonomy.py, tax-v1,
   D011): 24 top categories + subcategories per §18 (170 nodes), three
@@ -107,7 +120,7 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 165 passed (+18 taxonomy)
+- Backend pytest: 168 passed (+21 taxonomy, +1 wordnet stemmer guard)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)

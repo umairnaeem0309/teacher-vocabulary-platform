@@ -163,20 +163,27 @@ Status: **COMPLETE**
 ## Phase 9 — Thematic Taxonomy
 Status: **COMPLETE**
 
-- [x] Fixed versioned hierarchy tax-v1: 24 top categories + subcategories
-  per §18 (170 nodes), stored as node rows shared by UI and PG import
-- [x] Deterministic classifier (§50: no LLM): headword tier 0.90,
-  WordNet hypernym-chain tier 0.85 (reuses Phase 8 links + catalog),
-  gloss-keyword tier 0.60–0.80; best evidence per (category, sub) wins
+- [x] Fixed versioned hierarchy: 24 top categories + subcategories per
+  §18 (170 nodes), stored as node rows shared by UI and PG import
+- [x] Deterministic classifier (§50: no LLM): corroborated headword tier
+  0.90, WordNet hypernym-chain tier 0.85 (reuses Phase 8 links + catalog),
+  multi-keyword gloss tier 0.70–0.80; best evidence per (category, sub) wins
 - [x] Multiple categories per sense (§85); sub hit assigns parent top;
   uncategorized counted, never forced; full-refresh idempotent store
-- [x] Tests (18): hierarchy integrity, all 3 tiers, multi-category,
-  determinism, spec-word classification (§85 list), SQLite roundtrip
-- [x] Real-data smoke (scripts/phase9_taxonomy_smoke.py): 25,053 / 41,690
-  senses categorized (60.1%), 81,196 assignments, 11,645 multi-category
-  senses, all 24 categories populated; spot checks correct (thunder →
-  weather 0.90, hungry → emotions+food 0.85 chain, salary → money-income)
-- [x] Gates: pytest 165 passed; ruff/mypy clean
+- [x] Quality audit (D011 addendum): random-sample precision review
+  surfaced single-keyword gloss noise (removed), prone polysemous keywords
+  (pruned), stemmer over-stemming (>= 3-char guard, wnlink-v1.1) and
+  word-level headword misassignment (gloss corroboration, tax-v1.2);
+  coverage 60.1% → 18.5% with sub-level precision near 1.0
+- [x] Tests (21 taxonomy + 26 wordnet incl. stemmer guard): hierarchy
+  integrity, all tiers, corroboration on/off, multi-category, determinism,
+  spec-word classification (§85 list), SQLite roundtrip
+- [x] Real-data smoke (scripts/phase9_taxonomy_smoke.py): 7,702 / 41,690
+  senses categorized (18.5%), 12,599 assignments, 2,196 multi-category,
+  all 24 categories populated; audited sample clean (sleep → daily-rest,
+  football → sport-disciplines, terminal → travel-airports, thunder →
+  weather)
+- [x] Gates: pytest 168 passed; ruff/mypy clean
 - [x] Commit dated 2026-09-25 (+0500)
 
 ## Phases 10–29 (queued; detailed tasks added as each starts)

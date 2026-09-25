@@ -121,15 +121,20 @@ the construction sample; heuristic 0.70 links may be weighted at retrieval.
 ### Taxonomy layer (Phase 9, D011)
 
 `pipeline/enrich/taxonomy.py` implements the thematic hierarchy (§18) as a
-fixed versioned structure (tax-v1): 24 top categories + subcategories
-(170 nodes) stored as rows shared by the construction DB, the PostgreSQL
-import and the UI tree. Classification is deterministic (§50 — no LLM)
-with three tiers: headword keyword (0.90), WordNet hypernym-chain domain
-tokens over Phase 8 links (0.85, bounded depth-5 walk), gloss keyword
-stems (0.60–0.80). Multiple categories per sense are expected; a sub hit
-also assigns its parent top; uncategorized senses are normal (60.1%
-coverage on the sample). Categories are retrieval/filtering aids only —
-semantic search must not require them (§18, §85).
+fixed versioned structure (tax-v1.2 after the D011 audit): 24 top
+categories + subcategories (170 nodes) stored as rows shared by the
+construction DB, the PostgreSQL import and the UI tree. Classification is
+deterministic (§50 — no LLM) with three tiers: corroborated headword
+keyword (0.90 — the headword must be confirmed by same-category gloss
+evidence, with the headword's own stem excluded, so word-form alone never
+assigns a polysemous keyword), WordNet hypernym-chain domain tokens over
+Phase 8 links (0.85, bounded depth-5 walk), and multi-keyword gloss stems
+(0.70–0.80; single-keyword hits are noise and never assign). Multiple
+categories per sense are expected; a sub hit also assigns its parent top;
+uncategorized senses are normal (18.5% coverage on the sample — precision
+over coverage for teacher-facing filters). Categories are
+retrieval/filtering aids only — semantic search must not require them
+(§18, §85).
 
 ## Search Architecture
 

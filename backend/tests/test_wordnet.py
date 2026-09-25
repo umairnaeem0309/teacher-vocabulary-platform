@@ -4,6 +4,7 @@ import json
 
 import pytest
 from pipeline.enrich.wordnet import (
+    WORDNET_LINK_VERSION,
     WordnetEvidence,
     build_synset_catalog,
     build_wordnet_evidence,
@@ -236,6 +237,11 @@ class TestSenseLinking:
         assert stem_token("reserves") == stem_token("reserving")
         assert stem_token("countries") == "countri"
         assert stem_token("bank") == "bank"
+        # v1.1 guard: stems keep >= 3 chars (never collapse to 'do')
+        # and use/uses agree.
+        assert stem_token("dose") == "dos"
+        assert stem_token("dose") != "do"
+        assert stem_token("uses") == stem_token("use")
 
     def test_stemming_improves_definition_match(self) -> None:
         cat = build_synset_catalog(
@@ -299,6 +305,9 @@ class TestSenseLinking:
         l1, r1 = link_senses(senses, _catalog(), _evidence())
         l2, r2 = link_senses(senses, _catalog(), _evidence())
         assert l1 == l2 and r1.as_dict() == r2.as_dict()
+
+    def test_version_bumped_for_stem_guard(self) -> None:
+        assert WORDNET_LINK_VERSION == "wnlink-v1.1"
 
 
 class TestWordnetStore:

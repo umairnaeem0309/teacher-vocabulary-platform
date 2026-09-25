@@ -19,8 +19,13 @@ Multiple categories per sense are allowed (section 85). A subcategory hit
 also assigns its parent top (retrieval filters by top or sub). Uncate-
 gorized senses are normal and counted — categories are retrieval/filtering
 aids, never a prerequisite for semantic search (sections 18, 85).
-Version: ``tax-v1``; keyword tables are data, changed only with a new
-version so historical assignments stay explainable (§12, §127).
+Version: ``tax-v1.2`` (audit: the headword tier now requires same-
+category gloss corroboration — word-form evidence alone misassigned
+polysemous keywords like fast/train/mark to every sense; v1.1 removed
+single-keyword gloss hits as noise and pruned prone keywords; the
+wnlink-v1.1 stemmer guard removed dose->do-style over-stems). Keyword
+tables are data, changed only with a new version so historical
+assignments stay explainable (§12, §127).
 """
 
 from __future__ import annotations
@@ -32,15 +37,14 @@ from pipeline.enrich.wordnet import stem_token
 from pipeline.identity.identity import _significant_tokens
 from pipeline.normalize.clean import search_key
 
-TAXONOMY_VERSION = "tax-v1"
+TAXONOMY_VERSION = "tax-v1.2"
 
-# Confidence tiers (documented in D011).
+# Confidence tiers (documented in D011; v1.1 audit reshaped the gloss
+# tier — single-keyword gloss hits are noise and no longer assign).
 _CONF_HEADWORD = 0.90
 _CONF_WORDNET_CHAIN = 0.85
 _CONF_GLOSS_SUB_MULTI = 0.80   # >= 2 distinct sub keywords in gloss
-_CONF_GLOSS_SUB_SINGLE = 0.65
 _CONF_GLOSS_TOP_MULTI = 0.70
-_CONF_GLOSS_TOP_SINGLE = 0.60
 _METHOD_ORDER = {"headword": 3, "wordnet-chain": 2, "gloss": 1}
 
 # Hypernym walk is bounded to keep runs deterministic and cheap.
@@ -98,7 +102,7 @@ TAXONOMY: tuple[TopRule, ...] = (
             _sub("travel-airports", "Airports",
                  "airport", "airfield", "runway", "terminal", "boarding", "security"),
             _sub("travel-flights", "Flights",
-                 "flight", "fly", "layover", "turbulence", "departure", "arrival"),
+                 "layover", "turbulence", "departure", "arrival"),
             _sub("travel-hotels", "Hotels",
                  "hotel", "hostel", "motel", "reception", "checkin", "suite", "booking"),
             _sub("travel-reservations", "Reservations",
@@ -115,7 +119,10 @@ TAXONOMY: tuple[TopRule, ...] = (
                  "bus", "metro", "subway", "tram", "shuttle", "fare", "timetable"),
         ),
         top_keywords=("travel", "trip", "journey", "voyage", "abroad", "aboard"),
-        domain_tokens=("travel", "tourism", "journey", "voyage", "trip", "accommodation"),
+        domain_tokens=(
+            "travel", "tourism", "journey", "voyage", "trip",
+            "accommodation", "lodging", "airfield",
+        ),
     ),
     _top(
         "home-housing", "Home & Housing", 2,
@@ -135,7 +142,7 @@ TAXONOMY: tuple[TopRule, ...] = (
             _sub("home-property", "Property",
                  "property", "mortgage", "estate", "ownership", "deed"),
             _sub("home-utilities", "Utilities",
-                 "electricity", "water", "heating", "gas", "bill", "sewage"),
+                 "electricity", "heating", "sewage", "plumbing", "utility"),
             _sub("home-gardening", "Gardening",
                  "garden", "lawn", "mow", "plant", "flowerbed", "hedge", "rake"),
         ),
@@ -173,7 +180,7 @@ TAXONOMY: tuple[TopRule, ...] = (
             _sub("food-meals", "Meals",
                  "meal", "breakfast", "lunch", "dinner", "supper", "snack", "portion"),
             _sub("food-drinks", "Drinks",
-                 "drink", "beverage", "coffee", "tea", "juice", "water", "wine", "beer"),
+                 "drink", "beverage", "coffee", "tea", "juice", "wine", "beer"),
             _sub("food-eating-out", "Eating Out",
                  "restaurant", "cafe", "menu", "waiter", "order", "tip", "canteen"),
             _sub("food-taste", "Taste & Flavour",
@@ -316,7 +323,7 @@ TAXONOMY: tuple[TopRule, ...] = (
             _sub("ent-reading", "Books & Reading",
                  "book", "read", "novel", "author", "poem", "literature", "story"),
             _sub("ent-events", "Events & Parties",
-                 "festival", "party", "celebrity", "show", "premiere", "gala"),
+                 "party", "celebrity", "premiere", "gala", "festival"),
         ),
         top_keywords=("entertainment", "fun", "leisure"),
         domain_tokens=("entertainment", "amusement", "recreation", "leisure", "fun"),
@@ -330,7 +337,7 @@ TAXONOMY: tuple[TopRule, ...] = (
                  "illness", "disease", "sick", "symptom", "fever", "cough", "pain", "injury"),
             _sub("health-treatment", "Treatment & Medicine",
                  "medicine", "treatment", "pill", "tablet", "vaccine",
-                 "therapy", "surgery", "dose"),
+                 "therapy", "surgery"),
             _sub("health-facilities", "Hospitals & Clinics",
                  "hospital", "clinic", "ward", "ambulance", "patient", "surgery"),
             _sub("health-lifestyle", "Healthy Lifestyle",
@@ -516,7 +523,7 @@ TAXONOMY: tuple[TopRule, ...] = (
         (
             _sub("sport-disciplines", "Sports & Disciplines",
                  "football", "basketball", "tennis", "swimming", "cycling",
-                 "boxing", "skiing", "run"),
+                 "boxing", "skiing"),
             _sub("sport-competition", "Competition",
                  "match", "tournament", "league", "championship", "opponent", "referee"),
             _sub("sport-equipment", "Equipment & Venues",
@@ -524,7 +531,7 @@ TAXONOMY: tuple[TopRule, ...] = (
             _sub("sport-fitness", "Fitness & Exercise",
                  "fitness", "workout", "training", "stretch", "jog", "exercise"),
             _sub("sport-results", "Results & Winning",
-                 "win", "lose", "draw", "score", "goal", "victory", "defeat", "medal"),
+                 "win", "lose", "victory", "defeat", "medal", "champion"),
         ),
         top_keywords=("sport", "sports", "athletic"),
         domain_tokens=("sport", "athletic", "contest", "game", "gymnastic", "play"),
@@ -550,7 +557,7 @@ TAXONOMY: tuple[TopRule, ...] = (
         "daily-life", "Daily Life", 24,
         (
             _sub("daily-routines", "Daily Routines",
-                 "routine", "habit", "wake", "commute", "everyday", "usual"),
+                 "routine", "habit", "everyday", "usual"),
             _sub("daily-housework", "Housework",
                  "chore", "clean", "tidy", "vacuum", "laundry", "iron", "wash", "dust"),
             _sub("daily-errands", "Errands",
@@ -750,24 +757,37 @@ def _classify_one(
         ) > (current.confidence, _METHOD_ORDER.get(current.method, 0)):
             best[key] = candidate
 
-    # 1. Headword keyword (exact domain keyword as the headword itself).
+    # 1. Headword keyword, corroborated by gloss evidence (v1.2 audit
+    # fix): a keyword headword alone is word-level evidence — it must
+    # agree with same-category meaning evidence in the sense's gloss,
+    # otherwise every sense of a polysemous keyword gets misassigned
+    # ('fast' light-sensitive -> food-diets). The headword's own stem is
+    # excluded from corroboration: glosses frequently repeat the headword
+    # and self-corroboration is circular ('bank' aircraft sense).
+    evidence_stems = gloss_stems - {headword_stem}
     for compiled in _COMPILED:
-        if headword_stem in compiled.top_stems:
+        category_stems = compiled.top_stems | compiled.domain_stems
+        corroborated = bool(evidence_stems & category_stems)
+        if headword_stem in compiled.top_stems and corroborated:
             offer(CategoryAssignment(
                 category_key=compiled.rule.key, subcategory_key=None,
                 confidence=_CONF_HEADWORD, method="headword",
             ))
         for sub, stems in compiled.sub_stems:
             if headword_stem in stems:
-                offer(CategoryAssignment(
-                    category_key=compiled.rule.key, subcategory_key=sub.key,
-                    confidence=_CONF_HEADWORD, method="headword",
-                ))
-                # Sub hit assigns the parent top too (retrieval by top).
-                offer(CategoryAssignment(
-                    category_key=compiled.rule.key, subcategory_key=None,
-                    confidence=_CONF_HEADWORD, method="headword",
-                ))
+                sub_corroborated = bool(
+                    evidence_stems & (stems | category_stems)
+                )
+                if sub_corroborated:
+                    offer(CategoryAssignment(
+                        category_key=compiled.rule.key, subcategory_key=sub.key,
+                        confidence=_CONF_HEADWORD, method="headword",
+                    ))
+                    # Sub hit assigns the parent top too (retrieval by top).
+                    offer(CategoryAssignment(
+                        category_key=compiled.rule.key, subcategory_key=None,
+                        confidence=_CONF_HEADWORD, method="headword",
+                    ))
 
     # 2. WordNet hypernym-chain domain tokens (needs Phase 8 artifacts).
     if catalog is not None and sense_links:
@@ -784,10 +804,11 @@ def _classify_one(
                         confidence=_CONF_WORDNET_CHAIN, method="wordnet-chain",
                     ))
 
-    # 3. Gloss keyword hits.
+    # 3. Gloss keyword hits (v1.1: multi-keyword only — audit D011
+    # showed single-keyword gloss hits are predominantly noise).
     for compiled in _COMPILED:
         for sub, stems in compiled.sub_stems:
-            hits = len(gloss_stems & stems)
+            hits = len(evidence_stems & stems)
             if hits >= 2:
                 offer(CategoryAssignment(
                     category_key=compiled.rule.key, subcategory_key=sub.key,
@@ -797,25 +818,11 @@ def _classify_one(
                     category_key=compiled.rule.key, subcategory_key=None,
                     confidence=_CONF_GLOSS_SUB_MULTI, method="gloss",
                 ))
-            elif hits == 1:
-                offer(CategoryAssignment(
-                    category_key=compiled.rule.key, subcategory_key=sub.key,
-                    confidence=_CONF_GLOSS_SUB_SINGLE, method="gloss",
-                ))
-                offer(CategoryAssignment(
-                    category_key=compiled.rule.key, subcategory_key=None,
-                    confidence=_CONF_GLOSS_SUB_SINGLE, method="gloss",
-                ))
-        top_hits = len(gloss_stems & compiled.top_stems)
+        top_hits = len(evidence_stems & compiled.top_stems)
         if top_hits >= 2:
             offer(CategoryAssignment(
                 category_key=compiled.rule.key, subcategory_key=None,
                 confidence=_CONF_GLOSS_TOP_MULTI, method="gloss",
-            ))
-        elif top_hits == 1:
-            offer(CategoryAssignment(
-                category_key=compiled.rule.key, subcategory_key=None,
-                confidence=_CONF_GLOSS_TOP_SINGLE, method="gloss",
             ))
 
     return sorted(

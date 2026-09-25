@@ -408,3 +408,29 @@ pure function of sense data + tables.
 ## Status
 
 Accepted
+
+## D011 audit addendum (2026-09-25)
+
+A random-sample precision audit of the first real-data run surfaced three
+defects, fixed in two version bumps (each recorded here, not silently):
+
+1. **tax-v1.1** — single-keyword gloss hits (0.65 tier) were predominantly
+   noise (`hydraulic` -> food-drinks via "water"); removed. Prone
+   polysemous keywords (water, flight, score, wake, run, dose) pruned
+   from tables. The shared stemmer over-stripped short words
+   (`dose` -> `do` colliding with headword tier; `uses` -> `us` not
+   matching `use`) — fixed with a >= 3-char stem guard and bumped to
+   wnlink-v1.1 (same bug affected WordNet definition matching).
+2. **tax-v1.2** — the headword tier (0.90) applied word-level evidence to
+   every sense of a polysemous keyword (`fast` "light-sensitive" ->
+   food-diets, `train` "intimate terms" -> sport-fitness); the same error
+   class D009 fixed for CEFR. Headword hits now require same-category
+   gloss corroboration, and the headword's own stem is excluded from that
+   corroboration (glosses repeat the headword; self-corroboration is
+   circular).
+
+Measured effect on the 41,690-sense sample: categorized senses dropped
+60.1% -> 18.5% while sample precision at the sub level rose to near-1.0
+for headword/chain rows; coverage returns as keyword tables improve under
+future version bumps. Precision over coverage is the standing rule for
+teacher-facing filters.

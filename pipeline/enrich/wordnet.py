@@ -39,7 +39,7 @@ from pipeline.identity.identity import _significant_tokens
 from pipeline.normalize.clean import search_key
 from pipeline.normalize.pos import canonical_pos
 
-WORDNET_LINK_VERSION = "wnlink-v1"
+WORDNET_LINK_VERSION = "wnlink-v1.1"
 
 # Canonical grouping of WordNet relation types (section 84).
 SYNONYM_RELATIONS = ("similar",)
@@ -276,13 +276,17 @@ def stem_token(token: str) -> str:
     converge (``reserves`` → ``reserve`` → ``reserv`` matches ``reserve``).
     Both sides of every comparison stem identically, so over-stripping is
     consistent rather than wrong.
+
+    A stem must keep at least 3 characters: short remnants are almost
+    always wrong splits (``dose`` → ``do``, ``uses`` → ``us``) and made
+    the stem of ``use`` inconsistent with ``uses`` (v1.1 guard fix).
     """
     t = token
     if len(t) <= 3:
         return t
     for _ in range(4):
         for suffix, replacement in _STEM_SUFFIXES:
-            if t.endswith(suffix) and len(t) - len(suffix) >= 2:
+            if t.endswith(suffix) and len(t) - len(suffix) >= 3:
                 t = t[: len(t) - len(suffix)] + replacement
                 break
         else:

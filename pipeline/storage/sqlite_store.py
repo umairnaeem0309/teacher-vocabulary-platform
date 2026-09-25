@@ -92,6 +92,23 @@ CREATE TABLE IF NOT EXISTS sense_wordnet_links (
 );
 CREATE INDEX IF NOT EXISTS ix_swl_synset ON sense_wordnet_links(synset_id);
 
+CREATE TABLE IF NOT EXISTS taxonomy_nodes (
+    node_key   TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    parent_key TEXT,
+    position   INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sense_categories (
+    sense_key  TEXT NOT NULL REFERENCES master_senses(sense_key) ON DELETE CASCADE,
+    category_key  TEXT NOT NULL REFERENCES taxonomy_nodes(node_key) ON DELETE CASCADE,
+    subcategory_key TEXT,
+    confidence REAL NOT NULL,
+    method     TEXT NOT NULL,
+    PRIMARY KEY (sense_key, category_key, subcategory_key)
+);
+CREATE INDEX IF NOT EXISTS ix_sc_category ON sense_categories(category_key);
+
 CREATE TABLE IF NOT EXISTS pipeline_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT NOT NULL,
@@ -251,6 +268,60 @@ class ConstructionStore:
             total += len(batch)
         return total
 
+    def upsert_taxonomy_nodes(self, nodes: list, batch_size: int = 5000) -> int:
+        """Replace taxonomy node rows (fixed hierarchy, idempotent)."""
+        self.conn.execute("DELETE FROM taxonomy_nodes")
+        self.conn.executemany(
+            "INSERT INTO taxonomy_nodes (node_key, name, parent_key, position) "
+            "VALUES (?,?,?,?)",
+            [
+                (n["key"], n["name"], n["parent_key"], n["position"])
+                for n in nodes
+            ],
+        )
+        self.conn.commit()
+        return len(nodes)
+
+    def upsert_categories(
+        self,
+        assignments: dict,
+        batch_size: int = 5000,
+    ) -> int:
+        """Store sense->category assignments as a full refresh.
+
+        ``assignments`` is this run's complete classification, so previous
+        rows are deleted first — INSERT OR REPLACE cannot match top-level
+        rows whose subcategory_key is NULL (SQLite NULLs are distinct in
+        unique keys).
+        """
+        self.conn.execute("DELETE FROM sense_categories")
+        rows = [
+            (sense_key, a.category_key, a.subcategory_key, a.confidence, a.method)
+            for sense_key, assigns in assignments.items()
+            for a in assigns
+        ]
+        for start in range(0, len(rows), batch_size):
+            batch = rows[start:start + batch_size]
+            self.conn.executemany(
+                "INSERT INTO sense_categories "
+                "(sense_key, category_key, subcategory_key, confidence, method) "
+                "VALUES (?,?,?,?,?)",
+                batch,
+            )
+            self.conn.commit()
+        return len(rows)
+
+    def count_taxonomy(self) -> dict:
+        """Row counts for taxonomy tables (QC, §126)."""
+        q = lambda sql: int(self.conn.execute(sql).fetchone()[0])  # noqa: E731
+        return {
+            "nodes": q("SELECT COUNT(*) FROM taxonomy_nodes"),
+            "assignments": q("SELECT COUNT(*) FROM sense_categories"),
+            "categorized_senses": q(
+                "SELECT COUNT(DISTINCT sense_key) FROM sense_categories"
+            ),
+        }
+
     def count_senses(self) -> int:
         return int(self.conn.execute("SELECT COUNT(*) FROM master_senses").fetchone()[0])
 
@@ -290,5 +361,8 @@ class ConstructionStore:
             ),
             "with_wordnet": q(
                 "SELECT COUNT(DISTINCT sense_key) FROM sense_wordnet_links"
+            ),
+            "with_categories": q(
+                "SELECT COUNT(DISTINCT sense_key) FROM sense_categories"
             ),
         }

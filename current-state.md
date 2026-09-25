@@ -1,13 +1,28 @@
 # Current State
 
-Last updated: after Phase 8 (see plan.md for phase list)
+Last updated: after Phase 9 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 8 — WordNet and Semantic Relationships: **COMPLETE** (record below)
-Next: Phase 9 — Thematic Taxonomy
+Phase 9 — Thematic Taxonomy: **COMPLETE** (record below)
+Next: Phase 10 — Vocabulary Priority
 
 ## Completed work
+Phase 9:
+- Deterministic thematic taxonomy (pipeline/enrich/taxonomy.py, tax-v1,
+  D011): 24 top categories + subcategories per §18 (170 nodes), three
+  evidence tiers — headword 0.90, WordNet hypernym-chain 0.85 (reuses
+  Phase 8 links/catalog), gloss keywords 0.60–0.80; best per (category,
+  sub) wins; multiple categories per sense; uncategorized counted, never
+  forced; categories are retrieval/filtering aids, not a search
+  prerequisite (§18, §85).
+- Construction DB: taxonomy_nodes + sense_categories tables with full-
+  refresh idempotent upserts; QC counters.
+- Real-data smoke (scripts/phase9_taxonomy_smoke.py): 25,053 / 41,690
+  senses (60.1%) categorized, 81,196 assignments, 11,645 multi-category
+  senses, all 24 categories populated; spot checks correct (thunder →
+  weather 0.90 headword, hungry → emotions+food-cooking 0.85 chain,
+  salary → money-income 0.90).
 Phase 8:
 - Synset catalog in construction DB (pipeline/enrich/wordnet.py +
   pipeline/storage/sqlite_store.py): 107,519 synsets, 125,249 relations
@@ -92,7 +107,7 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 147 passed (+25 WordNet)
+- Backend pytest: 165 passed (+18 taxonomy)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)

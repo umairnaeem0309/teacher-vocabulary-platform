@@ -347,3 +347,64 @@ link is worse than no link, and every miss is counted, not hidden.
 ## Status
 
 Accepted
+
+# Decision D011
+
+**Title:** Deterministic thematic taxonomy (tax-v1)
+
+**Date:** 2026-09-25
+
+## Context
+
+Phase 9 (sections 18, 50, 85) requires a hierarchical taxonomy with
+categories, subcategories, mapping rules and confidence, allowing multiple
+categories per sense, classified deterministically without an LLM (§50),
+and never a prerequisite for semantic search.
+
+## Decision
+
+1. Fixed versioned hierarchy (``tax-v1``): 24 top categories + subcate-
+   gories per section 18's minimum list (170 nodes total), stored as rows
+   (key, name, parent_key, position) so the UI and the PostgreSQL import
+   share one definition.
+2. Three deterministic evidence tiers, best per (category, subcategory)
+   wins:
+   - ``headword`` (0.90): the headword itself is a domain keyword
+     ("airport", "salary") — highest precision;
+   - ``wordnet-chain`` (0.85): the Phase 8 linked synset, or its hypernym
+     ancestors (bounded walk, depth 5), has a definition containing the
+     category's domain tokens ("dog" -> ... -> "animal" -> nature);
+   - ``gloss`` (0.60-0.80): keyword stems in the gloss; >= 2 distinct
+     keyword hits 0.80 (sub) / 0.70 (top), single hit 0.65 (sub) /
+     0.60 (top).
+3. A subcategory hit also assigns its parent top (retrieval can filter by
+   top or sub). Multiple categories per sense are expected and counted.
+4. Uncategorized senses are normal and counted (60% coverage on the
+   construction sample). Keyword tables are pipeline data; changing them
+   means bumping ``tax-v1`` so historical assignments stay explainable
+   (sections 12, 127). Categories are retrieval/filtering aids only
+   (section 18) — semantic search (Phase 14) must not depend on them.
+
+## Reason
+
+Headword and WordNet evidence are objective; gloss keywords are the
+weakest signal and get the lowest confidence. Keyword tables are curated
+by hand for the teaching domain (not generated), kept modest in size, and
+errors are recoverable: re-running with a bumped version replaces all
+assignments (full refresh, not accumulate) because the classifier is a
+pure function of sense data + tables.
+
+## Alternatives considered
+
+- LLM classification of every sense (rejected: explicitly prohibited by
+  section 50 for the core path; optional isolated enrichment later).
+- Embedding clustering (rejected for v1: non-deterministic across model
+  versions; embeddings arrive in Phase 12 and may add a new tier then).
+- Single category per sense (rejected: section 85 explicitly allows
+  multiple; real senses span domains, e.g. "hungry" -> emotions + food).
+- Larger keyword tables for higher coverage (rejected for v1: precision
+  drops; coverage can grow with evidence-driven additions per version).
+
+## Status
+
+Accepted

@@ -160,8 +160,26 @@ Status: **COMPLETE**
 - [x] Gates: pytest 147 passed; ruff/mypy clean
 - [x] Commit dated 2026-09-24 (+0500)
 
-## Phases 9–29 (queued; detailed tasks added as each starts)
-9. Thematic taxonomy (deterministic mapping, multi-category)
+## Phase 9 — Thematic Taxonomy
+Status: **COMPLETE**
+
+- [x] Fixed versioned hierarchy tax-v1: 24 top categories + subcategories
+  per §18 (170 nodes), stored as node rows shared by UI and PG import
+- [x] Deterministic classifier (§50: no LLM): headword tier 0.90,
+  WordNet hypernym-chain tier 0.85 (reuses Phase 8 links + catalog),
+  gloss-keyword tier 0.60–0.80; best evidence per (category, sub) wins
+- [x] Multiple categories per sense (§85); sub hit assigns parent top;
+  uncategorized counted, never forced; full-refresh idempotent store
+- [x] Tests (18): hierarchy integrity, all 3 tiers, multi-category,
+  determinism, spec-word classification (§85 list), SQLite roundtrip
+- [x] Real-data smoke (scripts/phase9_taxonomy_smoke.py): 25,053 / 41,690
+  senses categorized (60.1%), 81,196 assignments, 11,645 multi-category
+  senses, all 24 categories populated; spot checks correct (thunder →
+  weather 0.90, hungry → emotions+food 0.85 chain, salary → money-income)
+- [x] Gates: pytest 165 passed; ruff/mypy clean
+- [x] Commit dated 2026-09-25 (+0500)
+
+## Phases 10–29 (queued; detailed tasks added as each starts)
 10. Vocabulary priority (documented deterministic formula, versioned)
 11. Examples & quality indicators
 12. Embeddings (BGE-M3, batched, resumable, pgvector + HNSW) — **requires D004 resolved**

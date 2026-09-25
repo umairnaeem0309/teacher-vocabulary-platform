@@ -118,6 +118,19 @@ argmax over definition/members (0.70). Ambiguity never links — misses are
 counted, not guessed. Currently 13,259 / 41,690 senses (31.8%) linked on
 the construction sample; heuristic 0.70 links may be weighted at retrieval.
 
+### Taxonomy layer (Phase 9, D011)
+
+`pipeline/enrich/taxonomy.py` implements the thematic hierarchy (§18) as a
+fixed versioned structure (tax-v1): 24 top categories + subcategories
+(170 nodes) stored as rows shared by the construction DB, the PostgreSQL
+import and the UI tree. Classification is deterministic (§50 — no LLM)
+with three tiers: headword keyword (0.90), WordNet hypernym-chain domain
+tokens over Phase 8 links (0.85, bounded depth-5 walk), gloss keyword
+stems (0.60–0.80). Multiple categories per sense are expected; a sub hit
+also assigns its parent top; uncategorized senses are normal (60.1%
+coverage on the sample). Categories are retrieval/filtering aids only —
+semantic search must not require them (§18, §85).
+
 ## Search Architecture
 
 Not yet implemented (Phase 14). Planned: 4 layers — exact/text (PostgreSQL

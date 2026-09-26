@@ -1,13 +1,29 @@
 # Current State
 
-Last updated: after Phase 9 (see plan.md for phase list)
+Last updated: after Phase 10 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 9 — Thematic Taxonomy: **COMPLETE** (record below)
-Next: Phase 10 — Vocabulary Priority
+Phase 10 — Vocabulary Priority: **COMPLETE** (record below)
+Next: Phase 11 — Examples & Quality Indicators
 
 ## Completed work
+Phase 10:
+- Deterministic priority scoring (pipeline/enrich/priority.py, prio-v1,
+  D012, docs/priority-scoring.md): `score = (0.35·frequency + 0.15·learner
+  + 0.20·polish + 0.30·quality) × penalty` — multiple signals, never CEFR
+  or raw frequency alone (§86); full component breakdown stored per sense
+  (§16); fixed quantile-free levels VERY HIGH ≥ 0.70 … VERY LOW < 0.25.
+- Missing evidence is neutral (0.5), never a penalty (§127); CEFR floors
+  at 0.55 so a C2 word is never disqualified (§14); flag penalty is
+  multiplicative (hard ×0.5 set-wise, soft ×0.75 each, floor 0.25) and
+  applied directly so flags move senses across level bands.
+- Construction DB: sense_priorities keyed (sense_key, version) — new
+  formula versions add rows, history never destroyed (§86).
+- Real-data smoke (scripts/phase10_priority_smoke.py): 41,690 senses →
+  VERY HIGH 3,828 / HIGH 17,219 / MEDIUM 11,985 / LOW 5,147 / VERY LOW
+  3,511; per-CEFR gradient A1 (2,302 VERY HIGH / 90 VERY LOW) → C2
+  (0 VERY HIGH / 22 VERY LOW); top `have` 0.853, bottom junk `aa` 0.110.
 Phase 9 (audit + fixes):
 - D011 addendum: random-sample precision audit of taxonomy surfaced four
   defect classes — single-keyword gloss noise (0.65 tier removed), prone
@@ -120,7 +136,7 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 168 passed (+21 taxonomy, +1 wordnet stemmer guard)
+- Backend pytest: 186 passed (+18 priority)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)
@@ -149,7 +165,9 @@ Phase 1:
 - Pipeline (150k-line Wiktextract sample = ~1.4% of dump): adapters →
   normalize → identity → enrich → SQLite construction DB. 41,690 master
   senses persisted; CEFR 57.9%, frequency 41.2%, Polish 31.6%, examples
-  60.3%; 970 CEFR conflicts preserved with flags. QC via store.qc_summary().
+  60.3%; 970 CEFR conflicts preserved with flags; WordNet 13,263 linked
+  (wnlink-v1.1); taxonomy 7,702 categorized (tax-v1.2); priorities 41,690
+  scored (prio-v1). QC via store.qc_summary().
 - **Inspected** (Phase 3): full inventory in docs/data-source-inventory.md.
 
 ## Search state
@@ -159,9 +177,9 @@ Phase 1:
 - Development only. Deployment docs are a Phase 28 deliverable.
 
 ## Next task
-Phase 8: WordNet integration — load synsets/relations/links into
-construction DB, link master senses via wordnet_links (lemma+POS),
-reserve semantic relations for retrieval/taxonomy use (sections 84, 50).
+Phase 11: Examples & quality indicators — extract and store example
+sentences per sense with quality indicators (sections 87, 16), feeding
+the Phase 10 quality component with real per-sense data.
 
 ---
 

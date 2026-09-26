@@ -186,8 +186,35 @@ Status: **COMPLETE**
 - [x] Gates: pytest 168 passed; ruff/mypy clean
 - [x] Commit dated 2026-09-25 (+0500)
 
-## Phases 10–29 (queued; detailed tasks added as each starts)
-10. Vocabulary priority (documented deterministic formula, versioned)
+## Phase 10 — Vocabulary Priority
+Status: **COMPLETE**
+
+- [x] Documented, deterministic, versioned formula (prio-v1, D012,
+  docs/priority-scoring.md): `score = (0.35·frequency + 0.15·learner +
+  0.20·polish + 0.30·quality) × penalty` — never CEFR alone, never raw
+  frequency alone (§86); multiple signals with full component breakdown
+  stored (§16)
+- [x] Components: NGSL-tuned frequency curve rank^-0.07 (far-tail floor,
+  missing → neutral); CEFR as mild learner relevance A1 1.0 → C2 0.55
+  (never disqualifying, §14); Polish usefulness = mean D007 confidence
+  (missing → neutral 0.5, not zero, §127); quality = examples + gloss
+  depth + WordNet link; flag penalty hard ×0.5 / soft ×0.75 each, floor
+  0.25, applied directly so VERY LOW is reachable
+- [x] Fixed quantile-free levels VERY HIGH ≥ 0.70 / HIGH ≥ 0.55 /
+  MEDIUM ≥ 0.40 / LOW ≥ 0.25 / VERY LOW below; all-neutral floor 0.35 LOW
+- [x] Construction DB: sense_priorities keyed (sense_key, version) —
+  new versions add rows, history never destroyed (§86)
+- [x] Tests (18): component curves, weights sum, all-neutral floor,
+  penalty semantics, thresholds, C2-not-disqualified, missing-signals
+  neutrality, explainability round-trip, determinism, version history
+- [x] Real-data smoke (scripts/phase10_priority_smoke.py): 41,690 senses
+  scored; VERY HIGH 3,828 / HIGH 17,219 / MEDIUM 11,985 / LOW 5,147 /
+  VERY LOW 3,511; per-CEFR gradient A1 (2,302 VERY HIGH, 90 VERY LOW) →
+  C2 (0 VERY HIGH, 22 VERY LOW); top `have` 0.853, bottom junk `aa` 0.110
+- [x] Gates: pytest 186 passed; ruff/mypy clean
+- [x] Commit dated 2026-09-26 (+0500)
+
+## Phases 11–29 (queued; detailed tasks added as each starts)
 11. Examples & quality indicators
 12. Embeddings (BGE-M3, batched, resumable, pgvector + HNSW) — **requires D004 resolved**
 13. PostgreSQL vocabulary import (validated, batched, transactional, reports)

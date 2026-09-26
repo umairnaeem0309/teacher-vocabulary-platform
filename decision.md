@@ -434,3 +434,75 @@ Measured effect on the 41,690-sense sample: categorized senses dropped
 for headword/chain rows; coverage returns as keyword tables improve under
 future version bumps. Precision over coverage is the standing rule for
 teacher-facing filters.
+
+# Decision D012
+
+**Title:** Deterministic vocabulary priority scoring (prio-v1)
+
+**Date:** 2026-09-26
+
+## Context
+
+Phase 10 (sections 15–17, 86) requires a priority for every sense that is
+never CEFR alone, never raw frequency alone, accounts for lexical-quality
+flags, is reproducible and explainable, and is stored with a version.
+Higher CEFR must not mean automatically lower usefulness (section 14), and
+missing evidence must not be scored as uselessness (section 127).
+
+## Decision
+
+1. Formula (`prio-v1`, pipeline/enrich/priority.py, documented in
+   docs/priority-scoring.md):
+   `score = (0.35·frequency + 0.15·learner + 0.20·polish + 0.30·quality)
+   × penalty`, clamped to [0, 1].
+2. Components: NGSL-tuned frequency curve `rank^-0.07` (rank ≥ 50,000 →
+   0.30 floor; missing → neutral 0.5); CEFR as mild learner relevance
+   A1 1.0 → C2 0.55 (never disqualifying; missing → 0.5); Polish usefulness
+   = mean D007 alignment confidence (missing → neutral 0.5, NOT zero —
+   §127); quality = examples 0.4 + gloss depth 0.15/0.3 + WordNet link 0.3
+   (presence-based positive evidence, no neutral).
+3. Penalty is multiplicative and applied directly (not blended): hard
+   markers (obsolete/archaic/historical/rare/rare-sense) × 0.5 (set
+   semantics, no stacking), soft markers (technical/slang/alt-of/…) × 0.75
+   each, floored at 0.25 — flags can move a sense across level bands.
+4. Levels are fixed quantile-free thresholds: VERY HIGH ≥ 0.70, HIGH ≥ 0.55,
+   MEDIUM ≥ 0.40, LOW ≥ 0.25, VERY LOW below. With all signals neutral the
+   score is the floor 0.35 (LOW) — absence of evidence is never scored as
+   VERY LOW.
+5. Every row stores score, level, version and a full components JSON
+   (§16); the teacher UI shows levels, the raw score is a tie-break
+   (§16). `sense_priorities` is keyed (sense_key, version): new formula
+   versions add rows and never destroy history (§86). Teacher overrides
+   (§17) are a later DB feature layered on top, never mutated by the
+   pipeline.
+
+## Reason
+
+A single-signal priority is explicitly prohibited (§86); blending four
+normalized signals with a capped frequency curve keeps core vocabulary at
+the top while leaving room for evidence quality to differentiate. The
+neutral value 0.5 for missing evidence keeps coverage gaps (Polish
+translations cover only ~38% of senses in the sample) from condemning
+senses by data availability. Presence-based quality has no neutral by
+design — an all-neutral sense (0.35, LOW) is the honest floor, and VERY
+LOW stays reserved for penalized senses. Quantile-free thresholds keep
+levels stable as the corpus grows; the version column keeps historical
+assignments explainable.
+
+## Alternatives considered
+
+- Quantile-based levels (rejected: levels would shift silently as the
+  corpus grows, breaking reproducibility; §86).
+- Missing Polish evidence → 0 (rejected: scores 62% of the sample as
+  useless by coverage alone; violates §127).
+- CEFR as difficulty penalty (rejected: §14 — C2 words with strong other
+  signals stay HIGH/VERY HIGH; measured on the sample).
+- Blended penalty `(1 − 0.15·(1−p))` (rejected in review: the worst case
+  could only reach 0.31, leaving VERY LOW unreachable and flags
+  toothless).
+- Raw rank as the score (rejected: raw frequency alone is prohibited;
+  §15–16).
+
+## Status
+
+Accepted

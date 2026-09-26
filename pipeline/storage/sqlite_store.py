@@ -109,6 +109,16 @@ CREATE TABLE IF NOT EXISTS sense_categories (
 );
 CREATE INDEX IF NOT EXISTS ix_sc_category ON sense_categories(category_key);
 
+CREATE TABLE IF NOT EXISTS sense_priorities (
+    sense_key  TEXT NOT NULL REFERENCES master_senses(sense_key) ON DELETE CASCADE,
+    score      REAL NOT NULL,
+    level      TEXT NOT NULL,
+    version    TEXT NOT NULL,
+    components_json TEXT,
+    PRIMARY KEY (sense_key, version)
+);
+CREATE INDEX IF NOT EXISTS ix_sp_level ON sense_priorities(level);
+
 CREATE TABLE IF NOT EXISTS pipeline_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT NOT NULL,
@@ -310,6 +320,34 @@ class ConstructionStore:
             )
             self.conn.commit()
         return len(rows)
+
+    def upsert_priorities(self, results: list, batch_size: int = 5000) -> int:
+        """Store priority results; keyed by (sense_key, version) so a new
+        formula version adds rows instead of destroying history (§86)."""
+        total = 0
+        rows = [
+            (r.sense_key, r.score, r.level, r.version, r.components_json())
+            for r in results
+        ]
+        for start in range(0, len(rows), batch_size):
+            batch = rows[start:start + batch_size]
+            self.conn.executemany(
+                "INSERT OR REPLACE INTO sense_priorities "
+                "(sense_key, score, level, version, components_json) "
+                "VALUES (?,?,?,?,?)",
+                batch,
+            )
+            self.conn.commit()
+            total += len(batch)
+        return total
+
+    def count_priorities(self) -> dict:
+        q = lambda sql: int(self.conn.execute(sql).fetchone()[0])  # noqa: E731
+        return {
+            "rows": q("SELECT COUNT(*) FROM sense_priorities"),
+            "senses": q("SELECT COUNT(DISTINCT sense_key) FROM sense_priorities"),
+            "versions": q("SELECT COUNT(DISTINCT version) FROM sense_priorities"),
+        }
 
     def count_taxonomy(self) -> dict:
         """Row counts for taxonomy tables (QC, §126)."""

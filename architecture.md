@@ -1,6 +1,6 @@
 # Architecture
 
-Reflects the implementation as of Phase 2. Updated every phase.
+Reflects the implementation as of Phase 10. Updated every phase.
 
 ## System Overview
 
@@ -111,12 +111,13 @@ the Phase 13 PostgreSQL import joins the same identifiers into
 `wordnet_synsets` / `wordnet_relations` / `sense_wordnet_links`. Relations
 are grouped synonym / hypernym / hyponym / related for retrieval and
 taxonomy use; the UI is never forced to show raw relation types (§84).
-Sense→synset linking (`wnlink-v1`) is POS-gated and deterministic:
+Sense→synset linking (`wnlink-v1.1`) is POS-gated and deterministic:
 WordNet's own monosemous assertion (0.80), definition-match via D008 token
-rules + a light inflection stemmer (≥ 0.60), or a unique ≥ 2 shared-token
-argmax over definition/members (0.70). Ambiguity never links — misses are
-counted, not guessed. Currently 13,259 / 41,690 senses (31.8%) linked on
-the construction sample; heuristic 0.70 links may be weighted at retrieval.
+rules + a light inflection stemmer (≥ 0.60, ≥ 3-char stem guard), or a
+unique ≥ 2 shared-token argmax over definition/members (0.70). Ambiguity
+never links — misses are counted, not guessed. Currently 13,263 / 41,690
+senses (31.8%) linked on the construction sample; heuristic 0.70 links may
+be weighted at retrieval.
 
 ### Taxonomy layer (Phase 9, D011)
 
@@ -135,6 +136,24 @@ uncategorized senses are normal (18.5% coverage on the sample — precision
 over coverage for teacher-facing filters). Categories are
 retrieval/filtering aids only — semantic search must not require them
 (§18, §85).
+
+### Priority layer (Phase 10, D012)
+
+`pipeline/enrich/priority.py` scores every sense with a deterministic,
+versioned formula (prio-v1, documented in docs/priority-scoring.md):
+`score = (0.35·frequency + 0.15·learner + 0.20·polish + 0.30·quality) ×
+penalty`. Frequency uses an NGSL-tuned rank curve (never raw rank — §15);
+CEFR enters as a mild learner-relevance prior floored at 0.55 so a C2 word
+is never disqualified (§14); missing evidence is neutral 0.5, never a
+penalty (§127); lexical-quality flags apply a multiplicative penalty
+(hard ×0.5, soft ×0.75 each, floored at 0.25). Levels are fixed
+quantile-free thresholds (VERY HIGH ≥ 0.70 … VERY LOW < 0.25) — the raw
+score is stored but the teacher UI shows levels (§16). Every row keeps its
+full component breakdown (`components_json`) and `priority_version`;
+`sense_priorities` is keyed (sense_key, version) so new formula versions
+add rows and never destroy history (§86). On the construction sample:
+VERY HIGH 3,828 / HIGH 17,219 / MEDIUM 11,985 / LOW 5,147 / VERY LOW 3,511
+of 41,690 senses.
 
 ## Search Architecture
 

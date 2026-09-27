@@ -249,7 +249,7 @@ Status: **COMPLETE**
 - [x] Commit dated 2026-09-27 (+0500)
 
 ## Phases 12–29 (queued; detailed tasks added as each starts)
-12. Embeddings (BGE-M3, batched, resumable, pgvector + HNSW) — **requires D004 resolved**
+12. Embeddings (BGE-M3, batched, resumable, pgvector + HNSW) — unblocked (D004 resolved 2026-09-27)
 13. PostgreSQL vocabulary import (validated, batched, transactional, reports)
 14. Search backend (exact/full-text/semantic/hybrid + filters + sorting + pagination, benchmarked)
 15. Teacher authentication (Argon2id, server-side sessions)
@@ -272,5 +272,6 @@ Status: **COMPLETE**
 
 ## Open items
 
-- [ ] D004: install pgvector via StackBuilder GUI on this machine before Phase 12
-  (fallback documented in decision.md). Owner: user + agent verification.
+- [x] D004: pgvector — RESOLVED 2026-09-27 (StackBuilder no longer ships
+  pgvector; community prebuilt 0.8.6 for PG 17 installed and verified.
+  See D004 addendum. Production must replace with a trusted build.)

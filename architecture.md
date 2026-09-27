@@ -187,8 +187,10 @@ embedded at search time.
 ## Embedding Architecture
 
 Model BAAI/bge-m3 (locked), 1024-dim, generated during construction,
-versioned and checkpointed, stored in pgvector with HNSW index. Requires
-D004 (pgvector installation) to be resolved.
+versioned and checkpointed, stored in pgvector with HNSW index. pgvector
+0.8.6 installed and verified on 2026-09-27 (D004 resolved via community
+prebuilt for PG 17 — see D004 addendum; production must use a trusted
+build).
 
 ## FSRS Architecture
 

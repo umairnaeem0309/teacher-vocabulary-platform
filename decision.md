@@ -75,7 +75,7 @@ Accepted
 # Decision D004
 
 ## Date
-2026-09-16
+2026-09-16 (resolved 2026-09-27)
 
 ## Decision
 pgvector installation is deferred to the point of first need (Phase 12
@@ -94,7 +94,47 @@ Installing VS 2022 Build Tools (~2–6 GB) immediately to compile from source
 (prohibited by master_prompt.md section 121).
 
 ## Status
-Accepted — OPEN ITEM tracked in current-state.md and plan.md
+Superseded 2026-09-27 — resolved differently, see addendum below
+
+## D004 addendum (2026-09-27): resolved with a community prebuilt
+
+Docker was ruled out by the user (local-only development). Resolution
+investigation found the documented install paths are all dead ends on this
+machine:
+
+1. **StackBuilder no longer offers pgvector** — the live StackBuilder v2
+   catalog (postgresql.org/applications-v2.xml, the exact URL embedded in
+   the local stackbuilder.exe) lists 76 applications for Windows (PostGIS,
+   Bluefin, pgAgent, PEM…) and none is pgvector. The original D004 target
+   does not exist anymore.
+2. **EDB PostgreSQL binaries zip** (postgresql-17.11-1-windows-x64-\
+   binaries.zip, 325 MB): its central directory was inspected remotely
+   (2.5 MB range download, all 21,903 entries parsed) — no pgvector
+   inside, so downloading it would have been pointless.
+3. **conda-forge pgvector win-64** (0.8.6): exists but is built against
+   conda-forge's PostgreSQL 16 (`libpq <17` dependency); installing its
+   vector.dll into EDB's PostgreSQL 17 failed with "procedure could not be
+   found" (ABI mismatch) — confirmed, then removed.
+4. **pgvector upstream** publishes no Windows binaries and this machine has
+   no MSVC compiler, so the D004 fallback (source compile) would require
+   installing VS Build Tools (~2–6 GB).
+
+**Resolution:** the user approved using a community prebuilt —
+`andreiramani/pgvector_pgsql_windows` release `0.8.6_17`
+(vector.v0.8.6-pg17.zip, natively MSVC-compiled for PostgreSQL 17 Windows;
+214★, active, self-described "unofficial release"). Files installed:
+`lib/vector.dll`, `share/extension/vector*.sql` + `vector.control`,
+`include/server/extension/vector/*.h`. PostgreSQL service restarted,
+`CREATE EXTENSION vector` succeeded in `vocab_platform` (extension version
+0.8.6). Verified: vector round-trip, `<->` distance operators, HNSW index
+creation + nearest-neighbor query via psql, and the backend stack
+(SQLAlchemy/psycopg3 via app.db.session) reading the extension and running
+a distance query.
+
+Risk accepted: the DLL is an unsigned community build running inside the
+server process on a local-only development machine. Production deployment
+(Phase 28) must replace it with a trusted build — noted in current-state.md
+known issues.
 
 ---
 

@@ -177,8 +177,12 @@ Phase 1:
 - None known.
 
 ## Known issues
-- pgvector is not yet installed (D004 — deferred to Phase 12; StackBuilder
-  GUI step pending on this machine). No Phase 3–11 deliverable depends on it.
+- pgvector 0.8.6 installed 2026-09-27 from a community prebuilt
+  (andreiramani/pgvector_pgsql_windows, MSVC-compiled for PG 17; D004
+  addendum) after StackBuilder dropped pgvector from its catalog — the DLL
+  is an unsigned third-party build; acceptable for local development only.
+  **Production (Phase 28) must replace it with a trusted build** (VS Build
+  Tools source compile or a distribution that ships pgvector).
 - Docker is unavailable on this machine; docker-compose.yml exists for
   Docker-capable environments but could not be executed here (D002).
 - Domain endpoints return 501 by design until their phase (see plan.md).
@@ -187,6 +191,8 @@ Phase 1:
 - PostgreSQL 17.11 running as Windows service.
 - Database `vocab_platform` at Alembic head `4c047544de4d` ("create core
   schema", 25 tables). No data rows yet (pipeline starts Phase 4+).
+- Extension `vector` 0.8.6 (pgvector) installed 2026-09-27 — verified via
+  psql and the backend stack: round-trip, `<->` operators, HNSW index.
 - Round-trip verified: downgrade base -> upgrade head reproduces schema.
 
 ## Data state
@@ -210,9 +216,8 @@ Phase 1:
 
 ## Next task
 Phase 12: Embeddings — BGE-M3 generation (batched, checkpointed,
-resumable, versioned) and pgvector storage with HNSW (§88). **Blocked
-on D004: pgvector must be installed via StackBuilder GUI first**
-(fallback documented in decision.md).
+resumable, versioned) and pgvector storage with HNSW (§88). Unblocked:
+pgvector 0.8.6 installed and verified (D004 resolved 2026-09-27).
 
 ---
 

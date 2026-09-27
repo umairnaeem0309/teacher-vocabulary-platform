@@ -1,6 +1,6 @@
 # Architecture
 
-Reflects the implementation as of Phase 10. Updated every phase.
+Reflects the implementation as of Phase 11. Updated every phase.
 
 ## System Overview
 
@@ -156,6 +156,26 @@ full component breakdown (`components_json`) and `priority_version`;
 add rows and never destroy history (§86). On the construction sample:
 VERY HIGH 3,814 / HIGH 17,109 / MEDIUM 11,860 / LOW 5,266 / VERY LOW 3,641
 of 41,690 senses.
+
+### Examples & quality layer (Phase 11, D013)
+
+`pipeline/enrich/examples.py` (ex-v1) integrates the two example sources —
+Wiktextract sense examples and WordNet synset examples joined through the
+Phase 8 links — into the `sense_examples` table (sense_key, position,
+text, source): cleaned (whitespace collapse, length 3–300, ≥ 1
+alphanumeric), deduplicated casefolded first-wins, wiktextract-then-
+wordnet order, capped at 5 per sense; a full refresh, like taxonomy.
+`pipeline/enrich/quality.py` (qual-v1) derives the §87 minimum indicators
+per sense into `sense_quality`: translation available/confidence (mean
+D007), definition available, example available, CEFR available, frequency
+available, category confidence (best assignment), and a composite
+sense_confidence (0.30 translation + 0.25 definition + 0.20 example +
+0.15 CEFR + 0.10 frequency). sense_confidence is an evidence-coverage
+view for review queues — deliberately separate from priority (§86), and
+missing evidence is 0.0, never invented (§108, §127). Incomplete senses
+are retained, never deleted (§87). On the construction sample: 52,824
+examples for 25,693 senses, mean sense_confidence 0.5089 over 41,690
+senses, 1 zero-evidence sense retained.
 
 ## Search Architecture
 

@@ -9,7 +9,9 @@ Batched inserts keep memory bounded (sections 48, 125).
 
 Phase 8 adds the WordNet catalog (synsets + grouped relations) and the
 resolved sense→synset links; ids are WordNet's own so the PostgreSQL
-import can join back to the same source of truth (D010).
+import can join back to the same source of truth (D010). Phase 11 adds
+integrated examples (sense_examples, ex-v1) and the section-87 quality
+indicators (sense_quality, qual-v1).
 """
 
 from __future__ import annotations
@@ -118,6 +120,29 @@ CREATE TABLE IF NOT EXISTS sense_priorities (
     PRIMARY KEY (sense_key, version)
 );
 CREATE INDEX IF NOT EXISTS ix_sp_level ON sense_priorities(level);
+
+CREATE TABLE IF NOT EXISTS sense_examples (
+    sense_key  TEXT NOT NULL REFERENCES master_senses(sense_key) ON DELETE CASCADE,
+    position   INTEGER NOT NULL,
+    text       TEXT NOT NULL,
+    source     TEXT NOT NULL,
+    PRIMARY KEY (sense_key, position)
+);
+CREATE INDEX IF NOT EXISTS ix_se_source ON sense_examples(source);
+
+CREATE TABLE IF NOT EXISTS sense_quality (
+    sense_key  TEXT PRIMARY KEY REFERENCES master_senses(sense_key) ON DELETE CASCADE,
+    translation_available INTEGER NOT NULL,
+    translation_confidence REAL NOT NULL,
+    definition_available INTEGER NOT NULL,
+    example_available INTEGER NOT NULL,
+    cefr_available INTEGER NOT NULL,
+    frequency_available INTEGER NOT NULL,
+    category_confidence REAL NOT NULL,
+    sense_confidence REAL NOT NULL,
+    version TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_sq_conf ON sense_quality(sense_confidence);
 
 CREATE TABLE IF NOT EXISTS pipeline_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -380,6 +405,72 @@ class ConstructionStore:
             self.conn.execute("SELECT COUNT(*) FROM sense_translations").fetchone()[0]
         )
 
+    def upsert_examples(self, records: list, batch_size: int = 5000) -> int:
+        """Store integrated examples as a full refresh (ex-v1).
+
+        ``records`` is this run's complete integration, so previous rows
+        are deleted first — the result is a pure function of the inputs.
+        """
+        self.conn.execute("DELETE FROM sense_examples")
+        rows = [
+            (r.sense_key, r.position, r.text, r.source)
+            for r in records
+        ]
+        for start in range(0, len(rows), batch_size):
+            batch = rows[start:start + batch_size]
+            self.conn.executemany(
+                "INSERT INTO sense_examples (sense_key, position, text, source) "
+                "VALUES (?,?,?,?)",
+                batch,
+            )
+            self.conn.commit()
+        return len(rows)
+
+    def upsert_quality(self, indicators: list, batch_size: int = 5000) -> int:
+        """Store quality indicators; one current row per sense plus its
+        version (older indicator versions are replaced — indicators are
+        derived views, the evidence they summarize is never touched)."""
+        total = 0
+        for start in range(0, len(indicators), batch_size):
+            batch = indicators[start:start + batch_size]
+            self.conn.executemany(
+                "INSERT OR REPLACE INTO sense_quality "
+                "(sense_key, translation_available, translation_confidence, "
+                " definition_available, example_available, cefr_available, "
+                " frequency_available, category_confidence, sense_confidence, "
+                " version) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                [ind.as_row() for ind in batch],
+            )
+            self.conn.commit()
+            total += len(batch)
+        return total
+
+    def count_examples(self) -> dict:
+        """Row counts for the examples table (QC, §126)."""
+        q = lambda sql: int(self.conn.execute(sql).fetchone()[0])  # noqa: E731
+        return {
+            "records": q("SELECT COUNT(*) FROM sense_examples"),
+            "senses": q("SELECT COUNT(DISTINCT sense_key) FROM sense_examples"),
+            "from_wiktextract": q(
+                "SELECT COUNT(*) FROM sense_examples WHERE source='wiktextract'"
+            ),
+            "from_wordnet": q(
+                "SELECT COUNT(*) FROM sense_examples WHERE source='wordnet'"
+            ),
+        }
+
+    def count_quality(self) -> dict:
+        """Row counts + indicator means for sense_quality (QC, §126)."""
+        q = lambda sql: self.conn.execute(sql).fetchone()[0]  # noqa: E731
+        total = int(q("SELECT COUNT(*) FROM sense_quality"))
+        return {
+            "senses": total,
+            "version": q("SELECT version FROM sense_quality LIMIT 1") if total else "",
+            "mean_sense_confidence": round(
+                float(q("SELECT AVG(sense_confidence) FROM sense_quality") or 0.0), 4
+            ),
+        }
+
     def qc_summary(self) -> dict:
         """Coverage counts computed from stored data (never invented, §127)."""
         total = self.count_senses()
@@ -397,6 +488,10 @@ class ConstructionStore:
             "with_examples": q(
                 "SELECT COUNT(*) FROM master_senses WHERE examples_json != '[]'"
             ),
+            "with_examples_integrated": q(
+                "SELECT COUNT(DISTINCT sense_key) FROM sense_examples"
+            ),
+            "with_quality": q("SELECT COUNT(*) FROM sense_quality"),
             "with_wordnet": q(
                 "SELECT COUNT(DISTINCT sense_key) FROM sense_wordnet_links"
             ),

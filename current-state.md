@@ -1,13 +1,32 @@
 # Current State
 
-Last updated: after Phase 10 audit (see plan.md for phase list)
+Last updated: after Phase 11 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 10 — Vocabulary Priority: **COMPLETE** (record below)
-Next: Phase 11 — Examples & Quality Indicators
+Phase 11 — Examples & Quality Indicators: **COMPLETE** (record below)
+Next: Phase 12 — Embeddings (**requires D004: pgvector install pending**)
 
 ## Completed work
+Phase 11:
+- Example integration (pipeline/enrich/examples.py, ex-v1, D013):
+  Wiktextract sense examples + WordNet synset examples (joined through
+  Phase 8 links) cleaned, deduplicated, source-ordered, capped at 5 per
+  sense, per-row provenance in the new sense_examples table (full
+  refresh, idempotent).
+- Quality indicators (pipeline/enrich/quality.py, qual-v1, D013): the
+  §87 minimum eight — translation available/confidence, definition
+  available, example available, CEFR available, frequency available,
+  category confidence, composite sense_confidence — deterministic from
+  stored evidence, missing = 0.0 (never invented); incomplete senses
+  retained (§87). sense_confidence is an evidence-coverage view, kept
+  separate from Phase 10 priority by design.
+- Real-data smoke (scripts/phase11_quality_smoke.py): 52,824 examples
+  for 25,693 senses (44,061 wiktextract + 8,763 wordnet; 3,271 unclean,
+  36 duplicate, 3,836 over-cap dropped); indicators for all 41,690
+  senses — translation 13,162 / definition 41,688 / example 25,693 /
+  CEFR 24,137 / frequency 17,161 / category 7,702; mean
+  sense_confidence 0.5089; 1 zero-evidence sense retained, none deleted.
 Phase 10 (audit + fixes):
 - D012 addendum: programmatic + stratified-sample audit surfaced slur-
   class senses un-penalized (brown slur sense at VERY HIGH 0.7412) and
@@ -147,7 +166,7 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 189 passed (+21 priority)
+- Backend pytest: 211 passed (+22 examples/quality)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)
@@ -178,7 +197,9 @@ Phase 1:
   senses persisted; CEFR 57.9%, frequency 41.2%, Polish 31.6%, examples
   60.3%; 970 CEFR conflicts preserved with flags; WordNet 13,263 linked
   (wnlink-v1.1); taxonomy 7,702 categorized (tax-v1.2); priorities 41,690
-  scored (prio-v1.1; prio-v1 history retained). QC via store.qc_summary().
+  scored (prio-v1.1; prio-v1 history retained); examples 52,824 integrated
+  for 25,693 senses (ex-v1); quality indicators 41,690 (qual-v1). QC via
+  store.qc_summary().
 - **Inspected** (Phase 3): full inventory in docs/data-source-inventory.md.
 
 ## Search state
@@ -188,9 +209,10 @@ Phase 1:
 - Development only. Deployment docs are a Phase 28 deliverable.
 
 ## Next task
-Phase 11: Examples & quality indicators — extract and store example
-sentences per sense with quality indicators (sections 87, 16), feeding
-the Phase 10 quality component with real per-sense data.
+Phase 12: Embeddings — BGE-M3 generation (batched, checkpointed,
+resumable, versioned) and pgvector storage with HNSW (§88). **Blocked
+on D004: pgvector must be installed via StackBuilder GUI first**
+(fallback documented in decision.md).
 
 ---
 

@@ -221,8 +221,34 @@ Status: **COMPLETE**
 - [x] Gates: pytest 189 passed; ruff/mypy clean
 - [x] Commits dated 2026-09-26 / 2026-09-27 (+0500)
 
-## Phases 11–29 (queued; detailed tasks added as each starts)
-11. Examples & quality indicators
+## Phase 11 — Examples & Quality Indicators
+Status: **COMPLETE**
+
+- [x] Example integration (pipeline/enrich/examples.py, ex-v1, D013):
+  Wiktextract sense examples + WordNet synset examples (via Phase 8
+  links) cleaned, deduplicated casefold-first-wins, source-ordered,
+  capped at 5/sense, per-row provenance; full-refresh sense_examples
+  table (sense_key, position, text, source)
+- [x] Quality indicators (pipeline/enrich/quality.py, qual-v1, D013):
+  the §87 minimum set — translation available/confidence, definition
+  available, example available, CEFR available, frequency available,
+  category confidence, composite sense_confidence (0.30/0.25/0.20/0.15/
+  0.10) — deterministic, missing evidence = 0.0, never invented
+- [x] sense_confidence kept separate from priority (D013): evidence
+  coverage view, not teaching rank; incomplete senses retained (§87)
+- [x] Tests (22): cleaning bounds, dedup, cap, source order,
+  determinism, indicator semantics (full/zero/clamps/saturation),
+  batch report, JSON stability, store roundtrip + replace/refresh
+- [x] Real-data smoke (scripts/phase11_quality_smoke.py): 52,824
+  examples for 25,693 senses (44,061 wiktextract + 8,763 wordnet; 3,271
+  unclean, 36 duplicate, 3,836 over-cap dropped); indicators for all
+  41,690 senses — translation 13,162, definition 41,688, example 25,693,
+  CEFR 24,137, frequency 17,161, category 7,702, mean sense_confidence
+  0.5089; 1 zero-evidence sense retained, none deleted (§87)
+- [x] Gates: pytest 211 passed; ruff/mypy clean
+- [x] Commit dated 2026-09-27 (+0500)
+
+## Phases 12–29 (queued; detailed tasks added as each starts)
 12. Embeddings (BGE-M3, batched, resumable, pgvector + HNSW) — **requires D004 resolved**
 13. PostgreSQL vocabulary import (validated, batched, transactional, reports)
 14. Search backend (exact/full-text/semantic/hybrid + filters + sorting + pagination, benchmarked)

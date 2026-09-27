@@ -531,7 +531,75 @@ ignored gloss evidence and mislabeled thin-but-real glosses ("the digit 1")
 as signal-less. All programmatic checks pass on prio-v1.1: levels match
 thresholds, scores recompute exactly from stored components, no ordering
 inversions across 421 strata, flagged senses average 0.299 vs 0.589 clean,
-CEFR gradient A1 0.612 → C2 0.502, boundary strata reviewed clean (A1 VERY
-LOW entries are abbreviation/alt-of junk senses; C2 `secure`/`commission`
+CEFR gradient A1 0.612 → C2 0.502, boundary strata reviewed clean (A1VERY LOW entries are abbreviation/alt-of junk senses; C2 `secure`/`commission`
 survive at HIGH). Distribution shift v1 → v1.1: VERY HIGH 3,828 → 3,814,
 VERY LOW 3,511 → 3,641 — flags and gloss depth now bind.
+
+# Decision D013
+
+**Title:** Example integration and quality indicators (ex-v1, qual-v1)
+
+**Date:** 2026-09-27
+
+## Context
+
+Phase 11 (section 87) requires integrating available examples and
+supporting at minimum eight quality indicators: translation available,
+translation confidence, definition available, example available, CEFR
+available, frequency available, category confidence, sense confidence —
+and it explicitly forbids deleting incomplete senses. Examples existed
+only as a raw JSON blob on master_senses; WordNet's synset examples were
+unused; there was no per-sense view of how much evidence exists.
+
+## Decision
+
+1. **sense_examples (ex-v1**, pipeline/enrich/examples.py**)**: Wiktextract
+   sense examples and WordNet synset examples (joined through the Phase 8
+   links, highest-confidence first) are cleaned (whitespace collapse,
+   length 3–300, ≥ 1 alphanumeric), deduplicated casefold-first-wins,
+   source-ordered wiktextract → wordnet, capped at 5 per sense. Every row
+   keeps its source; integration is a full refresh (pure function of the
+   inputs, like taxonomy assignments).
+2. **sense_quality (qual-v1**, pipeline/enrich/quality.py**)**: the §87
+   eight indicators, computed deterministically from stored evidence.
+   sense_confidence = 0.30·translation (mean D007 confidence) +
+   0.25·definition (≥ 1 significant gloss token) + 0.20·example
+   (min(1, n/2)) + 0.15·CEFR presence + 0.10·frequency presence.
+   Missing evidence is 0.0 — honestly empty, never invented (§108, §127).
+3. **sense_confidence is NOT priority**: it answers "how much evidence
+   supports this record?" (review queues, import triage); Phase 10's
+   priority answers "teach this first?" (§86). Conflating them would
+   punish data gaps as uselessness.
+4. **Incomplete senses are retained** (§87): a zero-evidence sense stays
+   in the platform with its provenance at sense_confidence 0.0.
+5. Indicator rows are derived views with replace-on-rerun semantics and
+   one current version — unlike priorities, no history is kept, because
+   the evidence tables (translations, examples, CEFR/frequency evidence,
+   categories) are the source of truth the indicators summarize.
+
+## Reason
+
+A real table makes examples queryable for the PostgreSQL import and the
+UI (bounded, ordered, provenance-carrying) instead of an opaque JSON
+blob; the indicator row gives the teacher UI and later phases one stable
+column set instead of recomputing evidence coverage. Presence-based
+indicators with a weighted composite are cheap, deterministic and
+explainable; the two views (quality vs priority) stay separated so a
+sense with little evidence is visible as such, not silently ranked away.
+
+## Alternatives considered
+
+- Keep the JSON blob (rejected: not queryable, no per-row provenance, no
+  dedup/cap; WordNet examples would stay unused).
+- Weight sense_confidence by CEFR level (rejected: §14 — a level is not
+  evidence quality).
+- Delete or hide low-evidence senses (rejected: explicitly prohibited by
+  §87; contradicts §127).
+- Priority-style version history for indicators (rejected: derived view;
+  evidence tables are the history).
+- No cap on examples (rejected: unbounded rows per sense hurt import size
+  and UI without teaching value; 5 is the documented ex-v1 bound).
+
+## Status
+
+Accepted

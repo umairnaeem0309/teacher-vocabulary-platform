@@ -1,10 +1,15 @@
-# Vocabulary Priority Scoring (prio-v1)
+# Vocabulary Priority Scoring (prio-v1.1)
 
 Phase 10 deliverable (master_prompt.md sections 15–17, 86; decision D012).
 The priority answers one question: **which senses should a teacher see and
 assign first?** It is deterministic, reproducible and explainable — the same
 construction DB always produces the same scores, and every score ships with
 its full component breakdown.
+
+**Version history:** `prio-v1` (initial calibration) → `prio-v1.1`
+(quality-audit fixes, D012 addendum: slur-class hard markers, significant-
+token gloss depth). Historical rows are never overwritten —
+`sense_priorities` keeps one row set per version.
 
 ## Design rules from the spec
 
@@ -72,13 +77,15 @@ alone.
 ### 4. Sense quality (weight 0.30)
 
 Cheap, objective richness indicators (presence-based — there is no neutral:
-quality is positive evidence):
+quality is positive evidence). Gloss depth counts **significant tokens**
+(≥ 2 alphanumeric characters — punctuation-only fragments and apostrophe
+splits like "a lady s maid" do not manufacture depth; prio-v1.1):
 
 | Indicator | Points |
 | --- | --- |
 | has ≥ 1 example | 0.4 |
-| gloss ≥ 3 tokens | 0.3 |
-| gloss ≥ 1 token | 0.15 |
+| gloss ≥ 3 significant tokens | 0.3 |
+| gloss ≥ 1 significant token | 0.15 |
 | WordNet link present (Phase 8) | 0.3 |
 
 Maximum 1.0. Because quality has no neutral, an all-neutral sense scores
@@ -90,8 +97,10 @@ penalty pushes below LOW; nothing is EVER LOW just for lacking evidence.
 Marker tags from Phase 4/7 Wiktextract extraction, checked as a set:
 
 - **Hard** markers (strong marginality): `obsolete`, `archaic`,
-  `historical`, `rare`, `rare-sense` → factor × **0.5** (set semantics:
-  several hard markers do not stack);
+  `historical`, `rare`, `rare-sense`, `derogatory`, `offensive`, `slur`
+  → factor × **0.5** (set semantics: several hard markers do not stack;
+  the slur class was added in prio-v1.1 — a slur sense is never
+  top-priority teaching material, however common its headword);
 - **Soft** markers (context-dependent): `technical`, `specialized`,
   `slang`, `vulgar`, `internet`, `alt-of`, `initialism`, `abbreviation`,
   `misspelling`, `pronunciation-spelling`, `obsolete-sense`,
@@ -121,19 +130,21 @@ Every sense stores its component breakdown; `components_json` is sorted,
 
 ```json
 {
-  "frequency": 0.6795,
-  "inputs": {"cefr_level": "A2", "examples": 2, "frequency_rank": 250,
-             "gloss_tokens": 3, "tags": [], "translations": 1,
+  "frequency": 0.6371,
+  "inputs": {"cefr_level": "A1", "examples": 1, "frequency_rank": 627,
+             "gloss_tokens": 15, "tags": ["countable"], "translations": 1,
              "wordnet_linked": true},
-  "learner": 0.9,
+  "learner": 1.0,
   "penalty_factor": 1.0,
-  "polish": 0.9,
+  "polish": 0.5,
   "quality": 1.0,
   "weights": {"frequency": 0.35, "learner": 0.15, "polish": 0.2, "quality": 0.3}
 }
 ```
 
-→ score 0.8528, VERY HIGH (`bank|noun|t` "financial institution").
+→ score 0.773, VERY HIGH (`bank|noun|ee72a0019d28` "an institution where
+one can place and borrow money…": rank 627, A1, one translation whose
+alignment confidence is unknown → neutral 0.5, full quality evidence).
 
 ## Versioning policy
 
@@ -148,21 +159,34 @@ later phase — the pipeline never mutates a teacher's choice.
 ## Real-data results (41,690-sense construction sample)
 
 Smoke: `scripts/phase10_priority_smoke.py` (idempotent; re-running replaces
-prio-v1 rows).
+the current version's rows and keeps older versions).
+
+prio-v1.1 distribution:
 
 | Level | Senses |
 | --- | --- |
-| VERY HIGH | 3,828 |
-| HIGH | 17,219 |
-| MEDIUM | 11,985 |
-| LOW | 5,147 |
-| VERY LOW | 3,511 |
+| VERY HIGH | 3,814 |
+| HIGH | 17,109 |
+| MEDIUM | 11,860 |
+| LOW | 5,266 |
+| VERY LOW | 3,641 |
+
+Quality audit (`scripts/phase10_priority_audit.py`, seed 42; D012 addendum):
+all programmatic checks pass — stored levels match thresholds, scores
+recompute exactly from stored components, no frequency-ordering inversions
+across 421 identical-component strata, flagged senses score lower on
+average (0.299 vs 0.589 clean), CEFR mean gradient A1 0.612 → C2 0.502,
+all 322 slur-class senses below VERY HIGH, no unflagged all-neutral sense
+below LOW. Stratified samples (per level, weakest VERY HIGH, strongest
+VERY LOW, A1 VERY LOW, C2 HIGH) reviewed clean: A1 VERY LOW entries are
+abbreviation/alt-of junk senses of common words; C2 `secure`/`commission`
+survive at HIGH (§14).
 
 Sanity checks:
 
 - Per-CEFR gradient runs the right way without being deterministic (§14):
-  A1 → 2,302 VERY HIGH / 90 VERY LOW; C2 → 0 VERY HIGH / 22 VERY LOW, but
+  A1 → 2,294 VERY HIGH / 104 VERY LOW; C2 → 0 VERY HIGH / 23 VERY LOW, but
   C2 still has 209 HIGH;
 - top of the scale: `have` (0.853); bottom: junk entries (`aa`, `aaa`,
   0.110) — obsolete/short tokens with no quality evidence;
-- top 3,828 (VERY HIGH) ≈ the plausible "teach first" head of the corpus.
+- top 3,814 (VERY HIGH) ≈ the plausible "teach first" head of the corpus.

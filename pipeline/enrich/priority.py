@@ -22,12 +22,12 @@ weights sum to 1.0):
   confidence when Polish translations exist; missing evidence is NEUTRAL
   (0.5), not a penalty — translation coverage grows with the full dump
   and absence of evidence is not evidence of uselessness (§127);
-- sense quality (0.30): has example(s) + gloss token count + WordNet
-  link present — cheap, objective richness indicators;
+- sense quality (0.30): has example(s) + significant gloss tokens +
+  WordNet link present — cheap, objective richness indicators;
 - lexical quality penalty (flags, multiplicative): obsolete /
-  archaic / rare / technical / slang / internet / alt-of markers
-  multiply the score down — 0.5 for a hard marker, 0.75 per soft
-  marker, floored at 0.25;
+  archaic / rare / derogatory / slur / technical / slang / alt-of
+  markers multiply the score down — 0.5 for a hard marker, 0.75 per
+  soft marker, floored at 0.25;
 
 With every signal neutral the score is the neutral floor 0.35 (LOW):
 absence of evidence is not scored as uselessness (§127) — VERY LOW is
@@ -46,7 +46,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-PRIORITY_VERSION = "prio-v1"
+PRIORITY_VERSION = "prio-v1.1"
 
 # Component weights (documented in D012; must sum to 1.0 before penalty).
 _W_FREQUENCY = 0.35
@@ -58,8 +58,11 @@ _W_LEARNER_NEUTRAL = 0.50
 _W_POLISH_NEUTRAL = 0.50
 
 # Hard markers (strong evidence the sense is marginal for learners).
+# slur/offensive/derogatory added in prio-v1.1 (audit): a slur sense is
+# never top-priority teaching material, however common its headword.
 _HARD_MARKERS = frozenset({
     "obsolete", "archaic", "historical", "rare", "rare-sense",
+    "derogatory", "offensive", "slur",
 })
 # Soft markers (context-dependent but often marginal).
 _SOFT_MARKERS = frozenset({
@@ -169,12 +172,31 @@ def polish_component(translations: list) -> float:
     return round(sum(confs) / len(confs), 4) if confs else _W_POLISH_NEUTRAL
 
 
+def significant_gloss_tokens(gloss: str) -> int:
+    """Content tokens of a gloss (prio-v1.1, D012 audit).
+
+    A token counts when it has >= 2 alphanumeric characters, so
+    punctuation-only fragments and apostrophe splits ("a lady s maid")
+    do not manufacture gloss depth. Mirrors the spirit of D008's
+    significant-token rule.
+    """
+    count = 0
+    for token in (gloss or "").split():
+        if sum(1 for ch in token if ch.isalnum()) >= 2:
+            count += 1
+    return count
+
+
 def quality_component(
     examples_count: int,
     gloss_tokens: int,
     wordnet_linked: bool,
 ) -> float:
-    """Cheap objective richness: examples + gloss depth + WordNet anchor."""
+    """Cheap objective richness: examples + gloss depth + WordNet anchor.
+
+    gloss_tokens must be SIGNIFICANT tokens (see
+    significant_gloss_tokens) — raw whitespace tokens overstate depth.
+    """
     score = 0.0
     if examples_count > 0:
         score += 0.4
@@ -289,7 +311,9 @@ def score_senses(rows: list) -> tuple[list[PriorityResult], PriorityReport]:
             translations=_field(row, "translations") or [],
             examples_count=_field(row, "examples_count") or 0,
             gloss_tokens=(
-                gloss_tokens if gloss_tokens is not None else len(str(gloss).split())
+                gloss_tokens
+                if gloss_tokens is not None
+                else significant_gloss_tokens(str(gloss))
             ),
             wordnet_linked=bool(_field(row, "wordnet_linked")),
             tags=_field(row, "tags") or [],

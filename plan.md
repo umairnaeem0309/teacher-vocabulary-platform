@@ -208,11 +208,18 @@ Status: **COMPLETE**
   penalty semantics, thresholds, C2-not-disqualified, missing-signals
   neutrality, explainability round-trip, determinism, version history
 - [x] Real-data smoke (scripts/phase10_priority_smoke.py): 41,690 senses
-  scored; VERY HIGH 3,828 / HIGH 17,219 / MEDIUM 11,985 / LOW 5,147 /
-  VERY LOW 3,511; per-CEFR gradient A1 (2,302 VERY HIGH, 90 VERY LOW) →
-  C2 (0 VERY HIGH, 22 VERY LOW); top `have` 0.853, bottom junk `aa` 0.110
-- [x] Gates: pytest 186 passed; ruff/mypy clean
-- [x] Commit dated 2026-09-26 (+0500)
+  scored; prio-v1.1: VERY HIGH 3,814 / HIGH 17,109 / MEDIUM 11,860 /
+  LOW 5,266 / VERY LOW 3,641; per-CEFR gradient A1 (2,294 VERY HIGH,
+  104 VERY LOW) → C2 (0 VERY HIGH, 23 VERY LOW); top `have` 0.853,
+  bottom junk `aa` 0.110
+- [x] Quality audit (D012 addendum, scripts/phase10_priority_audit.py):
+  stratified samples + programmatic checks surfaced slur senses un-
+  penalized (brown slur sense at VERY HIGH) and raw gloss token counting
+  overstating depth ("a lady s maid" → 4 tokens); fixed in prio-v1.1
+  (slur-class hard markers, significant-token gloss depth), history kept
+  (prio-v1 rows survive); post-fix audit PASS with 0 anomalies
+- [x] Gates: pytest 189 passed; ruff/mypy clean
+- [x] Commits dated 2026-09-26 / 2026-09-27 (+0500)
 
 ## Phases 11–29 (queued; detailed tasks added as each starts)
 11. Examples & quality indicators

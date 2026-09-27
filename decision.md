@@ -506,3 +506,32 @@ assignments explainable.
 ## Status
 
 Accepted
+
+## D012 audit addendum (2026-09-27)
+
+A programmatic + stratified-sample audit of the first real-data run
+(`scripts/phase10_priority_audit.py`, seed 42; same methodology as the D011
+addendum) surfaced two precision gaps, fixed in **prio-v1.1** (one version
+bump, recorded here, not silently):
+
+1. **Slur-class tags were not penalized.** The very-high sample contained
+   `brown` "dark-skinned" (tags: slur, ethnic, informal) at 0.7412 — a slur
+   sense of a common word sitting in the top teaching band. `derogatory`,
+   `offensive` and `slur` joined the hard markers (× 0.5, set semantics),
+   alongside the existing obsolete/archaic/historical/rare class. Measured:
+   322 slur-class senses in the sample, 0 at VERY HIGH after the fix.
+2. **Raw gloss token counting overstated gloss depth.** `split()` counted
+   punctuation-only fragments and apostrophe splits ("a lady s maid" → 4
+   tokens = full 0.30 depth tier; 656 senses in that zone, e.g. "the digit
+   1"). Quality now counts significant tokens (≥ 2 alphanumeric characters,
+   mirroring D008's content-token spirit).
+
+The audit script itself was also corrected: its all-neutral check originally
+ignored gloss evidence and mislabeled thin-but-real glosses ("the digit 1")
+as signal-less. All programmatic checks pass on prio-v1.1: levels match
+thresholds, scores recompute exactly from stored components, no ordering
+inversions across 421 strata, flagged senses average 0.299 vs 0.589 clean,
+CEFR gradient A1 0.612 → C2 0.502, boundary strata reviewed clean (A1 VERY
+LOW entries are abbreviation/alt-of junk senses; C2 `secure`/`commission`
+survive at HIGH). Distribution shift v1 → v1.1: VERY HIGH 3,828 → 3,814,
+VERY LOW 3,511 → 3,641 — flags and gloss depth now bind.

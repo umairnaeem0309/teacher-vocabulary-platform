@@ -1,4 +1,4 @@
-"""Phase 10 tests: deterministic vocabulary priority (D012, prio-v1)."""
+"""Phase 10 tests: deterministic vocabulary priority (D012, prio-v1.1)."""
 
 import json
 
@@ -13,6 +13,7 @@ from pipeline.enrich.priority import (
     polish_component,
     score_sense,
     score_senses,
+    significant_gloss_tokens,
 )
 from pipeline.identity.identity import MasterSense
 from pipeline.storage.sqlite_store import ConstructionStore
@@ -78,6 +79,11 @@ class TestComponents:
         assert penalty_component([]) == 1.0
         assert penalty_component(["obsolete"]) == pytest.approx(0.5)
         assert penalty_component(["slang"]) == pytest.approx(0.75)
+        # slur-class markers are hard (prio-v1.1 audit): no stacking among
+        # themselves, but they do combine with soft markers.
+        assert penalty_component(["slur"]) == pytest.approx(0.5)
+        assert penalty_component(["derogatory", "offensive"]) == pytest.approx(0.5)
+        assert penalty_component(["slur", "slang"]) == pytest.approx(0.375)
         # hard markers do not stack with each other (set semantics);
         # soft markers multiply: 0.5 * 0.75^2 = 0.28125.
         assert penalty_component(["obsolete", "slang", "technical"]) == pytest.approx(0.28125)
@@ -160,9 +166,29 @@ class TestScoring:
         assert r1.score == r2.score
         assert r1.components == r2.components
 
-    def test_version_is_prio_v1(self) -> None:
+    def test_significant_gloss_tokens(self) -> None:
+        # prio-v1.1: punctuation and apostrophe fragments are not depth.
+        assert significant_gloss_tokens("") == 0
+        assert significant_gloss_tokens(". . .") == 0
+        assert significant_gloss_tokens("financial institution") == 2
+        # single-char and apostrophe fragments don't count
+        assert significant_gloss_tokens("a lady s maid") == 2  # lady, maid
+        assert significant_gloss_tokens("the digit 1") == 2  # the, digit
+
+    def test_slur_sense_never_very_high(self) -> None:
+        # prio-v1.1 audit: a slur sense of a common word must not sit at
+        # the top of the teaching queue (brown "dark-skinned" case).
+        r = score_sense(
+            "brown|adj|t", frequency_rank=1913, cefr_level="A2",
+            translations=[], examples_count=2, gloss_tokens=35,
+            wordnet_linked=True, tags=["slur", "ethnic", "informal"],
+        )
+        assert r.level in ("LOW", "VERY LOW")
+        assert r.components["penalty_factor"] == pytest.approx(0.5)
+
+    def test_version_is_prio_v1_1(self) -> None:
         r = score_sense("x|noun|t", None, None, [], 0, 0, False, [])
-        assert r.version == PRIORITY_VERSION == "prio-v1"
+        assert r.version == PRIORITY_VERSION == "prio-v1.1"
 
 
 class TestBatch:
@@ -186,7 +212,7 @@ class TestBatch:
         assert report.senses_total == 2
         assert report.scored == 2
         assert sum(report.levels.values()) == 2
-        assert report.version == "prio-v1"
+        assert report.version == PRIORITY_VERSION
         assert results[0].score > results[1].score
 
 
@@ -207,9 +233,33 @@ class TestPriorityStore:
         counts = store.count_priorities()
         assert counts == {"rows": 2, "senses": 1, "versions": 2}
         row = store.conn.execute(
-            "SELECT level FROM sense_priorities WHERE version='prio-v1'"
+            "SELECT level FROM sense_priorities WHERE version=?",
+            (PRIORITY_VERSION,),
         ).fetchone()
         assert row == ("VERY HIGH",)  # score 0.8528: rank 250 + A2 + polish 0.9 + full quality
+        store.close()
+
+    def test_old_version_rows_survive_new_run(self, tmp_path) -> None:
+        # D012 audit addendum: re-running the pipeline with the current
+        # version replaces only its own rows; older versions' rows survive
+        # for historical explainability (section 86).
+        store = ConstructionStore(tmp_path / "c.sqlite")
+        store.upsert_senses([_Enriched(_sense())])
+        r1 = score_sense("bank|noun|t", 250, "A2", [_T(0.9)], 2, 3, True, [])
+        store.upsert_priorities([r1])
+        r_old = PriorityResult(
+            sense_key="bank|noun|t", score=0.7412, level="VERY HIGH",
+            version="prio-v1", components={"note": "pre-audit formula"},
+        )
+        store.upsert_priorities([r_old])
+        r_new = score_sense("bank|noun|t", 100, "A1", [_T(0.9)], 2, 3, True, [])
+        store.upsert_priorities([r_new])  # replaces r1, not r_old
+        counts = store.count_priorities()
+        assert counts == {"rows": 2, "senses": 1, "versions": 2}
+        row = store.conn.execute(
+            "SELECT score FROM sense_priorities WHERE version='prio-v1'"
+        ).fetchone()
+        assert row == (pytest.approx(0.7412),)
         store.close()
 
     def test_components_json_stored(self, tmp_path) -> None:

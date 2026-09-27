@@ -140,19 +140,21 @@ retrieval/filtering aids only — semantic search must not require them
 ### Priority layer (Phase 10, D012)
 
 `pipeline/enrich/priority.py` scores every sense with a deterministic,
-versioned formula (prio-v1, documented in docs/priority-scoring.md):
-`score = (0.35·frequency + 0.15·learner + 0.20·polish + 0.30·quality) ×
-penalty`. Frequency uses an NGSL-tuned rank curve (never raw rank — §15);
-CEFR enters as a mild learner-relevance prior floored at 0.55 so a C2 word
-is never disqualified (§14); missing evidence is neutral 0.5, never a
-penalty (§127); lexical-quality flags apply a multiplicative penalty
-(hard ×0.5, soft ×0.75 each, floored at 0.25). Levels are fixed
+versioned formula (prio-v1.1 after the D012 audit, documented in
+docs/priority-scoring.md): `score = (0.35·frequency + 0.15·learner +
+0.20·polish + 0.30·quality) × penalty`. Frequency uses an NGSL-tuned rank
+curve (never raw rank — §15); CEFR enters as a mild learner-relevance
+prior floored at 0.55 so a C2 word is never disqualified (§14); missing
+evidence is neutral 0.5, never a penalty (§127); lexical-quality flags
+apply a multiplicative penalty (hard ×0.5 — including the slur class
+added by the audit —, soft ×0.75 each, floored at 0.25); gloss depth
+counts significant tokens (≥ 2 alphanumeric chars). Levels are fixed
 quantile-free thresholds (VERY HIGH ≥ 0.70 … VERY LOW < 0.25) — the raw
 score is stored but the teacher UI shows levels (§16). Every row keeps its
 full component breakdown (`components_json`) and `priority_version`;
 `sense_priorities` is keyed (sense_key, version) so new formula versions
 add rows and never destroy history (§86). On the construction sample:
-VERY HIGH 3,828 / HIGH 17,219 / MEDIUM 11,985 / LOW 5,147 / VERY LOW 3,511
+VERY HIGH 3,814 / HIGH 17,109 / MEDIUM 11,860 / LOW 5,266 / VERY LOW 3,641
 of 41,690 senses.
 
 ## Search Architecture

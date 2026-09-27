@@ -2,7 +2,7 @@
 
 Reads senses + stored evidence (translations, examples, WordNet links,
 tags) and computes prio-v1 scores for every sense. Idempotent per
-version.
+version (version from pipeline.enrich.priority.PRIORITY_VERSION).
 
 Usage (from backend/ with uv):
     uv run python ../scripts/phase10_priority_smoke.py
@@ -18,7 +18,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from pipeline.enrich.priority import score_senses  # noqa: E402
+from pipeline.enrich.priority import PRIORITY_VERSION, score_senses  # noqa: E402
 from pipeline.storage.sqlite_store import ConstructionStore  # noqa: E402
 
 DB_PATH = REPO / "data" / "construction" / "construction.sqlite"
@@ -82,8 +82,9 @@ def main() -> int:
     rows_q = store.conn.execute(
         "SELECT ms.cefr_level, sp.level, COUNT(*) FROM sense_priorities sp "
         "JOIN master_senses ms ON ms.sense_key = sp.sense_key "
-        "WHERE sp.version='prio-v1' AND ms.cefr_level IS NOT NULL "
-        "GROUP BY 1, 2 ORDER BY 1, 2"
+        "WHERE sp.version=? AND ms.cefr_level IS NOT NULL "
+        "GROUP BY 1, 2 ORDER BY 1, 2",
+        (PRIORITY_VERSION,),
     ).fetchall()
     by_cefr: dict[str, dict[str, int]] = {}
     for cefr, level, n in rows_q:
@@ -96,14 +97,16 @@ def main() -> int:
     for hw, level, score in store.conn.execute(
         "SELECT ms.headword_search, sp.level, sp.score FROM sense_priorities sp "
         "JOIN master_senses ms ON ms.sense_key = sp.sense_key "
-        "WHERE sp.version='prio-v1' ORDER BY sp.score DESC LIMIT 5"
+        "WHERE sp.version=? ORDER BY sp.score DESC LIMIT 5",
+        (PRIORITY_VERSION,),
     ):
         print(f"  {score:.3f} {level:9s} {hw}")
     print("bottom 5:")
     for hw, level, score in store.conn.execute(
         "SELECT ms.headword_search, sp.level, sp.score FROM sense_priorities sp "
         "JOIN master_senses ms ON ms.sense_key = sp.sense_key "
-        "WHERE sp.version='prio-v1' ORDER BY sp.score ASC LIMIT 5"
+        "WHERE sp.version=? ORDER BY sp.score ASC LIMIT 5",
+        (PRIORITY_VERSION,),
     ):
         print(f"  {score:.3f} {level:9s} {hw}")
 

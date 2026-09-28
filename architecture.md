@@ -97,6 +97,24 @@ raw sources → source adapters (`pipeline/sources/*.py`) → normalized records
 → sense identity → CEFR/frequency/WordNet/taxonomy/priority → embeddings →
 SQLite construction DB → PostgreSQL import. Large files streamed, checkpointed.
 
+### PostgreSQL import layer (Phase 13, D015)
+
+`pipeline/storage/pg_import.py` (import-v1) loads the whole construction
+payload into PostgreSQL in ONE transaction: roots upserted by `sense_key`
+(so sense UUIDs — and therefore `sense_embeddings` FKs — survive
+re-imports), child tables delete-refreshed, priorities upserted per
+version (history preserved, PK `(sense_id, version)` per migration
+c3d94a71b6e2), and `vocabulary_senses.priority_*` refreshed from the
+current version (prio-v1.1). All validation uses construction shape
+(e.g. duplicate CEFR statements collapse deterministically to the
+lowest-(cefr, pos_raw) survivor); every rejected sense, orphan row,
+collapsed duplicate and unmapped tag lands in the section-89 report
+(`scripts/phase13_import.py` → `data/construction/phase13_import_report.json`),
+never silently dropped. Re-import is idempotent (verified: inserted=0,
+updated=41,687, UUIDs stable). **Migration tests are sandboxed into
+disposable scratch databases — `alembic downgrade` may never target the
+development database** (it destroyed data twice before D015).
+
 Measured: the 2.7 GB Wiktextract dump streams at ~12k records/s here (full
 pass ≈ 15 min), 10,913,996 lines, 0 malformed. Known schema facts driving
 adapter design: Wiktextract translations are word-level (`code: "pl"`),

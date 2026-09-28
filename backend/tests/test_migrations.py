@@ -1,10 +1,17 @@
 """Migration tests (section 78): up/down round-trip and schema correctness.
 
-These run Alembic programmatically against the real development database.
-They are skipped automatically when PostgreSQL is unreachable (see conftest).
+Table-presence checks run against the configured development database
+(read-only: presence of expected tables only). The up/down round-trip runs
+against a dedicated scratch database (``vocab_platform_test``), NOT the dev
+database: ``alembic downgrade base`` drops every table and must therefore
+never point at data we care about. The scratch DB is created on demand and
+dropped afterwards. Tests skip when PostgreSQL is unreachable (conftest).
 """
 
-from sqlalchemy import inspect, text
+import uuid
+
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import Engine
 
 from tests.conftest import requires_db
 
@@ -50,6 +57,49 @@ def _table_names(engine: object) -> set[str]:
     return names
 
 
+def _admin_url(dev_url: object) -> object:
+    """Same server/credentials as dev_url but pointed at the admin DB.
+
+    Works on the SQLAlchemy URL object (never str(), which masks the
+    password as ***).
+    """
+    return dev_url.set(database="postgres")  # type: ignore[attr-defined]
+
+
+def _scratch_engine() -> Engine:
+    """Return an engine to a disposable scratch DB (created here, dropped here).
+
+    Reuses the dev connection's server/port/user; the database name gets a
+    random suffix so concurrent runs never collide. Extensions (pgvector)
+    must be created explicitly because the scratch DB starts empty.
+    """
+    from app.db.session import get_engine
+
+    dev_url = get_engine().url
+    scratch_name = f"vocab_scratch_{uuid.uuid4().hex[:10]}"
+    admin = create_engine(_admin_url(dev_url), isolation_level="AUTOCOMMIT")
+    try:
+        with admin.connect() as conn:
+            conn.execute(text(f'CREATE DATABASE "{scratch_name}"'))
+    finally:
+        admin.dispose()
+    scratch_url = dev_url.set(database=scratch_name)  # type: ignore[attr-defined]
+    return create_engine(scratch_url)
+
+
+def _drop_scratch(engine: Engine) -> None:
+    name = engine.url.database
+    engine.dispose()
+    from app.db.session import get_engine
+
+    admin = create_engine(_admin_url(get_engine().url), isolation_level="AUTOCOMMIT")
+    try:
+        with admin.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+    finally:
+        admin.dispose()
+
+
 class TestSchemaPresent:
     """All entities from section 41 exist as tables."""
 
@@ -69,7 +119,13 @@ class TestSchemaPresent:
 
 
 class TestMigrationRoundTrip:
-    """downgrade base -> upgrade head leaves an equivalent schema (section 78)."""
+    """downgrade base -> upgrade head on a scratch DB leaves dev data intact.
+
+    Regression guard: an earlier version of this test ran
+    ``alembic downgrade base`` against the development database and wiped
+    all data mid-run (twice). The roundtrip now always targets a disposable
+    scratch database.
+    """
 
     def test_downgrade_and_upgrade_roundtrip(self) -> None:
         from alembic import command
@@ -77,23 +133,47 @@ class TestMigrationRoundTrip:
 
         from app.db.session import get_engine
 
-        alembic_cfg = Config("alembic.ini")
+        engine = _scratch_engine()
+        try:
+            # pgvector must exist before migration 7b2c91a4e8f5 adds a
+            # vector(1024) column on an empty database.
+            with engine.connect() as conn:
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                conn.commit()
 
-        before = _table_names(get_engine())
-        assert before >= EXPECTED_TABLES, "precondition: schema applied"
+            alembic_cfg = Config("alembic.ini")
+            # Programmatic override -> env.py targets the scratch DB only.
+            # NOTE: pass the URL object, not str() — str() masks the password.
+            alembic_cfg.attributes["sqlalchemy_url"] = engine.url
 
-        command.downgrade(alembic_cfg, "base")
-        after_down = _table_names(get_engine())
-        assert not (EXPECTED_TABLES & after_down), "schema not fully dropped"
+            command.upgrade(alembic_cfg, "head")
+            after_up = _table_names(engine)
+            assert after_up >= EXPECTED_TABLES, "schema not fully recreated"
 
-        command.upgrade(alembic_cfg, "head")
-        after_up = _table_names(get_engine())
-        assert after_up >= EXPECTED_TABLES, "schema not fully recreated"
+            command.downgrade(alembic_cfg, "base")
+            after_down = _table_names(engine)
+            assert not (EXPECTED_TABLES & after_down), "schema not fully dropped"
 
-        # Version table points at the head revision.
-        with get_engine().connect() as conn:
-            version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert version
+            # Roundtrip: upgrade again; schema equivalent to the first pass.
+            command.upgrade(alembic_cfg, "head")
+            after_up2 = _table_names(engine)
+            assert after_up2 >= EXPECTED_TABLES, "schema not fully recreated"
+
+            # Version table points at the head revision.
+            with engine.connect() as conn:
+                version = conn.execute(
+                    text("SELECT version_num FROM alembic_version")
+                ).scalar_one()
+            assert version
+
+            # Dev data untouched (the actual regression we are guarding).
+            with get_engine().connect() as conn:
+                dev_senses = conn.execute(
+                    text("SELECT count(*) FROM vocabulary_senses")
+                ).scalar()
+            assert dev_senses is not None
+        finally:
+            _drop_scratch(engine)
 
     def test_unique_student_sense_constraint_exists(self) -> None:
         from app.db.session import get_engine

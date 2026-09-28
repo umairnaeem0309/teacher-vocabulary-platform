@@ -1,17 +1,42 @@
 # Current State
 
-Last updated: after Phase 12 (see plan.md for phase list)
+Last updated: after Phase 13 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 12 — Embeddings: **COMPLETE (code + docs + tests)**; full 41,690-sense
- generation RUNNING detached (launched 2026-09-28, phase12_launch.ps1 →
- Start-Process; log data/construction/phase12_full.log, progress via
- emb-v1_checkpoint.json). Measured ~0.75 senses/s on real texts → ≈15h
- total; resumable (--full --resume), safe to interrupt.
-Next: Phase 13 — PostgreSQL vocabulary import (§89)
+Phase 13 — PostgreSQL vocabulary import (§89): **COMPLETE (code + docs +
+tests + real import)**. 41,687/41,690 senses in PG (3 junk rows rejected
+and reported), re-import idempotent (inserted=0, updated=41,687, UUIDs
+stable), priority history (prio-v1 + prio-v1.1) and denormalized
+current-priority columns populated.
+Phase 12 — Embeddings: code/tests/docs complete; full 41,690-sense
+generation RUNNING detached (relaunched 2026-09-28 after two external
+DB wipes, see D015; log data/construction/phase12_full.log, progress
+via emb-v1_checkpoint.json). Measured ~0.75 senses/s on real texts →
+≈15h total; resumable (--full --resume), safe to interrupt; per-batch
+persistence means checkpoint == stored rows.
+Next: Phase 14 — Search backend (§90)
 
 ## Completed work
+Phase 13:
+- Importer (pipeline/storage/pg_import.py, import-v1, D015): validated,
+  batched, single-transaction; roots upserted by sense_key (UUIDs +
+  embedding FKs preserved), children delete-refreshed, everything
+  dropped/duplicated/unmapped reported (data/construction/
+  phase13_import_report.json).
+- Deterministic CEFR collapse: 6,684 duplicate (sense, source)
+  statements resolved to the lowest-(cefr,pos_raw) survivor.
+- Migration c3d94a71b6e2: sense_priorities PK (sense_id) → (sense_id,
+  version) — Phase 2 schema could not hold D012 history; 83,374 rows
+  imported across prio-v1/prio-v1.1.
+- refresh_priority_columns: vocabulary_senses.priority_* mirror
+  prio-v1.1 (41,687 rows); versioned table stays source of truth.
+- Migration roundtrip test sandboxed into disposable vocab_scratch_*
+  DBs; env.py accepts programmatic/ALEMBIC_DATABASE_URL override.
+  **No test may downgrade the dev DB** — that wiped data twice.
+- Stale-checkpoint guard: embedding resume verifies checkpointed work
+  is actually stored; mismatch restarts fresh (caught live).
+
 Phase 12:
 - Embedding pipeline (pipeline/enrich/embeddings.py, emb-v1, D014,
   docs/embeddings.md): BGE-M3 1024-dim L2-normalized, recipe
@@ -201,7 +226,8 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 211 passed (+22 examples/quality)
+- Backend pytest: 251 passed (incl. 17 import, 16 embeddings, 7 pgvector,
+  sandboxed migration roundtrip)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)
@@ -224,11 +250,16 @@ Phase 1:
 
 ## Database state
 - PostgreSQL 17.11 running as Windows service.
-- Database `vocab_platform` at Alembic head `4c047544de4d` ("create core
-  schema", 25 tables). No data rows yet (pipeline starts Phase 4+).
+- Database `vocab_platform` at Alembic head `c3d94a71b6e2` (priority
+  history PK; 27 tables incl. sense_embeddings).
+- Data: 41,687 vocabulary_senses (imported Phase 13, ids stable across
+  re-imports), 83,374 sense_priorities (prio-v1 + prio-v1.1),
+  priority_* columns populated (prio-v1.1); sense_embeddings filling
+  via the detached Phase 12 run (checkpoint == stored rows).
 - Extension `vector` 0.8.6 (pgvector) installed 2026-09-27 — verified via
   psql and the backend stack: round-trip, `<->` operators, HNSW index.
-- Round-trip verified: downgrade base -> upgrade head reproduces schema.
+- Migration roundtrip runs in disposable scratch DBs only (D015: the dev
+  DB must never be downgraded by tests).
 
 ## Data state
 - Raw datasets present and immutable under `data/raw/` (Git-ignored,
@@ -250,9 +281,10 @@ Phase 1:
 - Development only. Deployment docs are a Phase 28 deliverable.
 
 ## Next task
-Phase 12: Embeddings — BGE-M3 generation (batched, checkpointed,
-resumable, versioned) and pgvector storage with HNSW (§88). Unblocked:
-pgvector 0.8.6 installed and verified (D004 resolved 2026-09-27).
+Phase 14: Search — exact/full-text/semantic (precomputed BGE-M3
+embeddings + pgvector HNSW) + hybrid, filters, sorting, pagination,
+benchmarked (§90). Unblocked: vocabulary imported (Phase 13);
+embeddings generating (Phase 12 full run, resumable).
 
 ---
 

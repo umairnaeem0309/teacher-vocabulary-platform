@@ -5,12 +5,14 @@ config in alembic.ini). All models must be imported here so autogenerate
 sees the full metadata.
 """
 
+import os
 import sys
 from logging.config import fileConfig
 from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import URL
 
 # Make the `app` package importable when alembic runs from backend/.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -28,10 +30,25 @@ target_metadata = Base.metadata
 
 
 def _database_url() -> str:
-    """Resolve the sync SQLAlchemy URL for migrations."""
-    url = get_settings().database_url
+    """Resolve the sync SQLAlchemy URL for migrations.
+
+    Precedence: explicit programmatic override (config.attributes, used by
+    tests to run against a scratch database), then ALEMBIC_DATABASE_URL,
+    then application settings. Tests must never downgrade the development
+    database, so an isolated target is always available.
+    """
+    override = context.config.attributes.get("sqlalchemy_url")
+    if override is not None:
+        # str(URL) masks the password (***), which would break the engine;
+        # render with credentials intact.
+        if isinstance(override, URL):
+            return override.render_as_string(hide_password=False)
+        return str(override)
+    env_override = os.getenv("ALEMBIC_DATABASE_URL")
+    if env_override:
+        return env_override
     # Alembic runs synchronously; psycopg3 dialect is already sync-capable.
-    return url
+    return get_settings().database_url
 
 
 def run_migrations_offline() -> None:

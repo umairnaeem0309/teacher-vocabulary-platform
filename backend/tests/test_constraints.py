@@ -149,7 +149,8 @@ class TestOtherUniqueness:
         from app.db.models import VocabularySource
 
         s1, _ = senses
-        src = VocabularySource(key="cefrj", name="CEFR-J 1.5")
+        # uuid suffix: isolate from the persisted Phase 13 import sources
+        src = VocabularySource(key=f"cefrj-{uuid.uuid4().hex[:8]}", name="CEFR-J 1.5")
         db.add(src)
         db.flush()
         db.add(

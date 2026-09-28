@@ -717,3 +717,79 @@ checkpoint state == stored state at batch granularity. A persist
 exception aborts without advancing the checkpoint (tested). Final
 end-of-run upsert kept as idempotent safety net. Regression tests:
 ordering (batch before checkpoint), cumulative coverage, failure-aborts.
+
+# Decision D015
+
+Date: 2026-09-28
+Phase: 13 (§89)
+
+## Context
+
+Phase 13 imports the construction DB into PostgreSQL in one transaction.
+The construction schema (master_senses + child tables, keys, priorities,
+quality, wordnet) differs materially from the PG vocabulary schema, and
+real data violates two PG assumptions that the 96-row smoke data could
+not surface. Separately, the suite's migration roundtrip test has wiped
+the development database twice while long-running jobs were live.
+
+## Decision
+
+- **Importer `pipeline/storage/pg_import.py` (import-v1)**: validated,
+  batched, single-transaction import; root `vocabulary_senses` rows are
+  upserted by `sense_key` so UUIDs (and therefore `sense_embeddings`
+  FKs) survive re-imports; children are delete-refreshed per import;
+  orphans, rejected senses, collapsed duplicates and unmapped tags are
+  reported, never silently dropped (§89 report).
+- **Duplicate CEFR evidence**: construction holds 6,259 (sense, source)
+  duplicate statements vs PG's UNIQUE constraint. `collapse_cefr`
+  deterministically keeps the lowest (cefr, pos_raw) survivor — the
+  lowest CEFR is the conservative pedagogical choice (§14). 6,684 rows
+  collapsed on real data.
+- **Priority history schema gap**: Phase 2 keyed `sense_priorities` by
+  `sense_id` alone, which cannot represent the versioned history D012
+  requires. Migration `c3d94a71b6e2` switches the PK to
+  `(sense_id, version)`; both prio-v1 and prio-v1.1 import (83,374
+  rows). Denormalized `priority_*` columns on `vocabulary_senses` mirror
+  the current version (prio-v1.1) via `refresh_priority_columns`; the
+  versioned table remains the source of truth (§86).
+- **Migration tests are sandboxed**: `test_migrations.py` roundtrip now
+  creates a disposable `vocab_scratch_*` database, runs
+  upgrade/downgrade/upgrade there, asserts dev data is untouched, and
+  drops it. `env.py` accepts a programmatic URL override
+  (`config.attributes["sqlalchemy_url"]`, URL object only — `str()`
+  masks the password) plus `ALEMBIC_DATABASE_URL`. **Rule: no test or
+  script may run `alembic downgrade` against the development database.**
+- **Stale checkpoint guard (Phase 12 hardening)**: the embedding script
+  now verifies checkpointed senses actually exist in storage before
+  resuming (count senses ≤ last_sense_key with a stored sha); on
+  mismatch it logs and restarts from scratch instead of resuming into a
+  lie. Caught live when the wiped DB and stale checkpoint met.
+
+## Reason
+
+The import only meets PG's constraints if duplicates are resolved
+deterministically and history is representable; both gaps were invisible
+until real 41,690-row data hit the schema. The sandboxed roundtrip
+exists because ``alembic downgrade base`` on the dev DB destroyed data
+twice — once killing the embedding worker mid-run with FK violations,
+once dropping `sense_embeddings` entirely. Tests must be able to prove
+schema correctness without holding production data hostage.
+
+## Alternatives considered
+
+- Import priorities as one flat row per sense (rejected: destroys
+  D012's version history; the construction DB already holds two
+  versions per sense).
+- Keep the roundtrip on the dev DB but snapshot/restore around it
+  (rejected: heavyweight, still races concurrent jobs; a scratch DB is
+  simpler and fully isolated).
+- Propagate `priority_*` columns from the construction row (rejected:
+  construction has no such columns — inventing data in the loader would
+  hide the true source; the refresh derives from `sense_priorities`).
+- Skip CEFR duplicates arbitrarily (rejected: nondeterministic re-runs
+  would flip evidence between imports; the conservative survivor is
+  stable).
+
+## Status
+
+Accepted

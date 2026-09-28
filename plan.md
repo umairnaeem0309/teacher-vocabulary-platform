@@ -283,8 +283,38 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 - [x] Gates: pytest 231 passed; ruff/mypy clean
 - [x] Commit dated 2026-09-27 (+0500)
 
-## Phases 13–29 (queued; detailed tasks added as each starts)
-13. PostgreSQL vocabulary import (validated, batched, transactional, reports)
+## Phase 13 (section 89: PostgreSQL vocabulary import) — COMPLETE 2026-09-28
+
+- [x] pipeline/storage/pg_import.py (import-v1): validated, batched,
+  single-transaction import; root rows upserted by sense_key (UUIDs and
+  embedding FKs preserved across re-imports); children delete-refreshed;
+  orphans/duplicates/unmapped tags reported, never dropped
+- [x] collapse_cefr: deterministic lowest-(cefr,pos_raw) survivor for the
+  6,259 duplicate (sense, source) statements (6,684 collapsed on real data)
+- [x] Migration c3d94a71b6e2: sense_priorities PK (sense_id) ->
+  (sense_id, version) — Phase 2 schema could not represent D012 priority
+  history; ORM updated to match
+- [x] refresh_priority_columns: denormalized priority_* on
+  vocabulary_senses mirror prio-v1.1 (41,687 rows populated); versioned
+  table remains source of truth (section 86)
+- [x] scripts/phase13_import.py + phase13_verify.py; real import:
+  41,687/41,690 inserted (3 junk rows rejected + reported), re-import
+  idempotent (inserted=0, updated=41,687)
+- [x] Tests (17): validation/normalize/collapse/report unit tests + PG
+  roundtrip, idempotent re-import, UUID preservation, delete-refresh,
+  rollback safety, priority backfill; test_constraints source key made
+  session-unique (isolation)
+- [x] test_migrations roundtrip sandboxed: disposable vocab_scratch_* DB
+  (created/dropped per run), env.py programmatic URL override;
+  **downgrade may never target the dev DB** (it wiped data twice — D015)
+- [x] Stale-checkpoint guard in phase12 script: resume verifies
+  checkpointed senses are actually stored; restarts fresh on mismatch
+- [x] Gates: pytest 251 passed; ruff/mypy clean
+- [x] Full embedding generation relaunched (detached, ~15h; per-batch
+  persistence verified live: checkpoint N -> N×32 rows)
+- [x] Commit dated 2026-09-28 (+0500)
+
+## Phases 14–29 (queued; detailed tasks added as each starts)
 14. Search backend (exact/full-text/semantic/hybrid + filters + sorting + pagination, benchmarked)
 15. Teacher authentication (Argon2id, server-side sessions)
 16. Vocabulary UI (dense spreadsheet table, TanStack Table)

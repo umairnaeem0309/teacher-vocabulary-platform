@@ -32,6 +32,7 @@ EXPECTED_TABLES = {
     "categories",
     "sense_categories",
     "sense_priorities",
+    "sense_embeddings",  # Phase 12 (section 88; migration 7b2c91a4e8f5)
     # learning
     "student_vocabulary",
     "student_fsrs_states",

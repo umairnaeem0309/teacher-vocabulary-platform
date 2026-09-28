@@ -643,3 +643,63 @@ sense with little evidence is visible as such, not silently ranked away.
 ## Status
 
 Accepted
+
+# Decision D014
+
+Date: 2026-09-27
+Phase: 12 (§88)
+
+## Context
+
+Phase 12 needs 41,690 sense embeddings supporting semantic search (Phase
+14). CPU-only workstation (torch 2.14.0+cpu, CUDA unavailable); generation
+cost is hours, so the run must be interruptible and resumable. pgvector is
+installed (D004). §88 forbids embedding arbitrary metadata.
+
+## Decision
+
+- **Model lock: `BAAI/bge-m3`**, 1024-dim, L2-normalized, cosine
+  similarity, via sentence-transformers. CPU-only in dev; the pipeline is
+  device-agnostic.
+- **Recipe `emb-v1`: `headword | pos | gloss | ex1 | ex2`** — identity
+  text plus up to two examples from `sense_examples`. No IDs, ranks,
+  categories, priorities, provenance or other metadata are embedded (§88).
+- **Change/resume guard: `text_sha256`** stored per row; senses whose
+  recomputed hash matches the stored one are skipped, changed ones are
+  re-encoded in place (`ON CONFLICT DO UPDATE`).
+- **Checkpointing**: sorted sense_key order; periodic
+  `emb-v1_checkpoint.json` with `last_sense_key` + `batches_done`; resume
+  filter `k > last_sense_key`; the callback receives an immutable
+  snapshot (`dataclasses.replace`), not the mutable accumulator.
+- **One current version**: `UNIQUE (sense_id, embedding_version)` plus
+  `delete_other_versions` — unlike priorities (prio-v1 history kept),
+  embeddings keep no history; they are a derived view fully rebuildable
+  from the evidence tables, which remain the source of truth.
+
+## Reason
+
+Sorted order + hash-skip + checkpoint makes hours-long CPU generation
+interrupt-safe and incremental: re-runs cost seconds when nothing changed.
+The recipe keeps multi-lingual BGE-M3 focused on lexical meaning (what a
+semantic query can plausibly match), not bookkeeping columns the UI
+already exposes as filters. History was rejected because every regeneration
+is deterministic from evidence; keeping stale versions would double storage
+(41,690 × 1024 floats per version ≈ 170 MB) with no query use.
+
+## Alternatives considered
+
+- Embed full definition + all examples (rejected: much longer inputs,
+  CPU cost grows, marginal retrieval gain for a teacher UI).
+- Embed metadata (rejected: §88 explicitly; also pollutes similarity —
+  two senses with the same category but unrelated meanings would drift
+  together).
+- Keep embedding history like prio-v1 (rejected above: rebuildable view).
+- Random/shuffled processing order (rejected: breaks deterministic
+  resume semantics; sorted keys give stable string-compare checkpoints).
+- Float16 storage (rejected: pgvector halfvec gains little at 1024 dims
+  here and complicates the HNSW ops choice; revisit at Phase 25 if storage
+  matters).
+
+## Status
+
+Accepted

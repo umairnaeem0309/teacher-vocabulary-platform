@@ -1,13 +1,45 @@
 # Current State
 
-Last updated: after Phase 11 (see plan.md for phase list)
+Last updated: after Phase 12 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 11 — Examples & Quality Indicators: **COMPLETE** (record below)
-Next: Phase 12 — Embeddings (**requires D004: pgvector install pending**)
+Phase 12 — Embeddings: **COMPLETE (code + docs + tests)**; full 41,690-sense
+ generation is a ~5.4h CPU job, launch command in docs/embeddings.md —
+ resumable (--full --resume), safe to interrupt, checkpointed.
+Next: Phase 13 — PostgreSQL vocabulary import (§89)
 
 ## Completed work
+Phase 12:
+- Embedding pipeline (pipeline/enrich/embeddings.py, emb-v1, D014,
+  docs/embeddings.md): BGE-M3 1024-dim L2-normalized, recipe
+  `headword | pos | gloss | ex1 | ex2` (max 2 examples, no metadata per
+  §88), per-row text_sha256 change/resume guard, sorted sense_key order,
+  immutable-snapshot checkpoints (dataclasses.replace), lazy singleton
+  EmbeddingModel with data/models cache.
+- pgvector storage (pipeline/storage/pg_store.py): ensure_sense_rows
+  (idempotent v0-bootstrap of vocabulary_senses with app-generated uuid4
+  ids per D006), existing_embedding_shas, upsert_embeddings
+  (CAST(:emb AS vector); psycopg3 rejects :param::vector),
+  delete_other_versions (exactly one current version), count_embeddings,
+  nearest_senses (cosine over HNSW).
+- Migration 7b2c91a4e8f5: sense_embeddings — vector(1024),
+  UNIQUE(sense_id, embedding_version), version btree, HNSW
+  ix_sense_embeddings_hnsw (vector_cosine_ops); EXPECTED_TABLES updated.
+- Deps: sentence-transformers 6.1.0, pgvector, torch 2.14.0+cpu,
+  transformers 5.17.0 (uv add; CUDA unavailable on this workstation).
+- Real-data smoke (scripts/phase12_embeddings_smoke.py, --limit 96
+  --probes): 96 senses embedded (0.4s encode, 43.7s total incl. load),
+  rows=96 versions=1; re-run idempotent — 96/96 skipped_unchanged,
+  0 re-embedded, checkpoint resume verified on real data. Probes printed
+  but uninformative at limit=96 (candidate pool = 96 lowest-rank
+  a–about senses); nearest-neighbor quality must be judged after the
+  full 41,690-sense run. BGE-M3 weights were downloaded via ModelScope
+  mirror (HF CDN stalled repeatedly on this network) and sha256-verified
+  (b5e0ce34…daad38) into the HF cache; model loads with HF_HUB_OFFLINE=1.
+- Throughput measured on CPU: ~2.2 texts/s → full run ≈ 5.4h
+  (longer than the 1–3h estimate); commands documented in
+  docs/embeddings.md.
 Phase 11:
 - Example integration (pipeline/enrich/examples.py, ex-v1, D013):
   Wiktextract sense examples + WordNet synset examples (joined through

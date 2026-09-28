@@ -186,9 +186,17 @@ embedded at search time.
 
 ## Embedding Architecture
 
-Model BAAI/bge-m3 (locked), 1024-dim, generated during construction,
-versioned and checkpointed, stored in pgvector with HNSW index. pgvector
-0.8.6 installed and verified on 2026-09-27 (D004 resolved via community
+Model BAAI/bge-m3 (locked, D014), 1024-dim, L2-normalized, cosine
+similarity. Senses are embedded during construction with recipe emb-v1
+`headword | pos | gloss | ex1 | ex2` (max 2 examples; no metadata, §88);
+only the teacher's query is embedded at search time. Each row stores
+model/version/dims/embedding_version/text_sha256; unchanged senses are
+skipped by hash, changed ones re-encoded; checkpoints (last sense_key)
+make hours-long CPU runs resumable. Storage is pgvector with an HNSW
+cosine index; exactly one embedding_version is kept (embeddings are a
+rebuildable derived view, unlike priority history). Generation,
+versioning and run instructions: docs/embeddings.md. pgvector 0.8.6
+installed and verified on 2026-09-27 (D004 resolved via community
 prebuilt for PG 17 — see D004 addendum; production must use a trusted
 build).
 

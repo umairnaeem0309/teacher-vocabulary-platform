@@ -248,8 +248,41 @@ Status: **COMPLETE**
 - [x] Gates: pytest 211 passed; ruff/mypy clean
 - [x] Commit dated 2026-09-27 (+0500)
 
-## Phases 12–29 (queued; detailed tasks added as each starts)
-12. Embeddings (BGE-M3, batched, resumable, pgvector + HNSW) — unblocked (D004 resolved 2026-09-27)
+## Phase 12 — Embeddings
+Status: **COMPLETE (code, tests, docs)** — full 41,690-sense generation
+is a ~5.4h CPU job; launch command documented in docs/embeddings.md
+(resumable, checkpointed, safe to interrupt; run at operator's leisure).
+
+- [x] D014: model lock BAAI/bge-m3 (1024-dim, L2-normalized, cosine),
+  recipe emb-v1 `headword | pos | gloss | ex1 | ex2` (max 2 examples,
+  no metadata per §88), text_sha256 skip/re-embed guard, one-version
+  storage (no history — rebuildable derived view)
+- [x] pipeline/enrich/embeddings.py: deterministic sorted-order batch
+  generation, immutable-snapshot checkpoints (dataclasses.replace),
+  lazy singleton EmbeddingModel (cache data/models)
+- [x] pipeline/storage/pg_store.py: ensure_sense_rows (idempotent
+  v0-bootstrap, app-generated uuid4 per D006), existing_embedding_shas,
+  upsert_embeddings (CAST(:emb AS vector)), delete_other_versions,
+  count_embeddings, nearest_senses (HNSW cosine)
+- [x] Migration 7b2c91a4e8f5: sense_embeddings vector(1024),
+  UNIQUE(sense_id, embedding_version), HNSW vector_cosine_ops index;
+  EXPECTED_TABLES updated
+- [x] Tests (13): FakeModel recipe/skip/resume/checkpoint/determinism
+  + 2 PG tests (roundtrip+nearest, delete_other_versions);
+  test_migrations strict table test extended
+- [x] Real-data smoke (--limit 96 --probes): rows=96 versions=1;
+  re-run idempotent (96/96 skipped_unchanged, 0 re-embedded); checkpoint
+  resume verified; probes uninformative at limit=96 (pool = lowest-rank
+  a–about senses) — judge neighbor quality after full run
+- [x] BGE-M3 weights sha256-verified (b5e0ce34…daad38) into HF cache;
+  downloaded via ModelScope mirror (HF CDN stalled repeatedly); loads
+  offline; throughput measured ~2.2 texts/s CPU
+- [x] docs/embeddings.md (§88 deliverable: instructions, recipe,
+  versioning, mirror notes)
+- [x] Gates: pytest 231 passed; ruff/mypy clean
+- [x] Commit dated 2026-09-27 (+0500)
+
+## Phases 13–29 (queued; detailed tasks added as each starts)
 13. PostgreSQL vocabulary import (validated, batched, transactional, reports)
 14. Search backend (exact/full-text/semantic/hybrid + filters + sorting + pagination, benchmarked)
 15. Teacher authentication (Argon2id, server-side sessions)

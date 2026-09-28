@@ -114,6 +114,25 @@ def main() -> int:
         existing = existing_embedding_shas(conn, EMBEDDINGS_VERSION)
     print(f"sense identity rows ensured: {len(key_to_id)}; stored shas: {len(existing)}")
 
+    if checkpoint is not None and checkpoint.version != EMBEDDINGS_VERSION:
+        print(f"checkpoint version {checkpoint.version} != {EMBEDDINGS_VERSION}; starting fresh")
+        checkpoint = Checkpoint()
+    if checkpoint is not None and checkpoint.last_sense_key is not None:
+        # resume guard: every sense at-or-before the checkpoint must actually
+        # be stored (external DB reset/wipe invalidates the checkpoint)
+        last = checkpoint.last_sense_key
+        all_keys = {
+            str(r["sense_key"]) if isinstance(r, dict) else str(r.sense_key) for r in rows
+        }
+        missing = sorted(k for k in all_keys if k <= last and k not in existing)
+        if missing:
+            print(
+                f"checkpoint stale: {len(missing)} senses <= {last} not stored "
+                "(db reset?); starting fresh"
+            )
+            checkpoint = Checkpoint()
+            CHECKPOINT_PATH.write_text(checkpoint.as_json(), encoding="utf-8")
+
     def save_checkpoint(cp: Checkpoint) -> None:
         CHECKPOINT_PATH.write_text(cp.as_json(), encoding="utf-8")
 

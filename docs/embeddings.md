@@ -69,6 +69,11 @@ checkpoint=None, checkpoint_cb=None)`:
 5. The checkpoint callback receives an immutable snapshot
    (`dataclasses.replace`) — the stored checkpoint always reflects exactly
    the state at save time.
+6. `batch_cb` (optional): each batch's records are passed to it BEFORE
+   the checkpoint advances, so the caller can persist to pgvector per
+   batch — the checkpoint never claims unstored work (resume is
+   lossless; D014 addendum). The full-run script does exactly this;
+   the end-of-run upsert is an idempotent safety net.
 
 `EmbeddingModel` is a lazy singleton (`shared()`); `model_version()` is
 the model name truncated to 40 chars, matching the DB column.

@@ -703,3 +703,17 @@ is deterministic from evidence; keeping stale versions would double storage
 ## Status
 
 Accepted
+
+### Addendum (2026-09-28, after real-run review)
+
+The first full detached run exposed a resume-loss defect the 96-sense
+smoke could not catch: the script accumulated all records in memory and
+upserted once at the end, while checkpoints advanced per batch — an
+interrupt would have skipped senses checkpointed but never stored
+(~1,000 rows at kill time). Fix: `generate_embeddings` gained `batch_cb`,
+fired with the batch's records BEFORE the checkpoint callback; the
+script persists each batch to pgvector in its own transaction, so
+checkpoint state == stored state at batch granularity. A persist
+exception aborts without advancing the checkpoint (tested). Final
+end-of-run upsert kept as idempotent safety net. Regression tests:
+ordering (batch before checkpoint), cumulative coverage, failure-aborts.

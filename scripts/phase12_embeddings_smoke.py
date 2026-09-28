@@ -117,6 +117,12 @@ def main() -> int:
     def save_checkpoint(cp: Checkpoint) -> None:
         CHECKPOINT_PATH.write_text(cp.as_json(), encoding="utf-8")
 
+    def persist_batch(batch_records: list) -> None:
+        # store each batch BEFORE its checkpoint advances, so an interrupt
+        # + resume never skips unstored senses (checkpoint == stored state)
+        with engine.begin() as conn:
+            upsert_embeddings(conn, key_to_id, batch_records)
+
     records, report = generate_embeddings(
         rows,
         existing_shas=existing,
@@ -124,11 +130,12 @@ def main() -> int:
         batch_size=args.batch_size,
         checkpoint=checkpoint,
         checkpoint_cb=save_checkpoint,
+        batch_cb=persist_batch,
     )
     print(f"generated ({time.time() - t0:.1f}s): {json.dumps(report.as_dict())}")
 
     with engine.begin() as conn:
-        n = upsert_embeddings(conn, key_to_id, records)
+        n = upsert_embeddings(conn, key_to_id, records)  # idempotent safety net
         deleted = delete_other_versions(conn, EMBEDDINGS_VERSION)
     print(f"stored: {n} rows (removed other versions: {deleted})")
 

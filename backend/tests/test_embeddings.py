@@ -111,6 +111,53 @@ class TestGeneration:
         assert seen[-1].last_sense_key == "e|noun|t"
         assert seen[-1].as_json() == Checkpoint.from_json(seen[-1].as_json()).as_json()
 
+    def test_batch_cb_receives_records_before_checkpoint_advances(self) -> None:
+        # regression: batch_cb must fire BEFORE checkpoint_cb so a caller
+        # persisting per batch never stores a checkpoint ahead of its data
+        rows = _rows("a", "b", "c", "d", "e")
+        events: list[tuple[str, int]] = []
+
+        def on_batch(batch_records: list[EmbeddingRecord]) -> None:
+            events.append(("batch", len(batch_records)))
+
+        def on_checkpoint(cp: Checkpoint) -> None:
+            events.append(("checkpoint", cp.batches_done))
+
+        generate_embeddings(
+            rows, model=FakeModel(), batch_size=2,
+            checkpoint_cb=on_checkpoint, batch_cb=on_batch,
+        )
+        assert events == [
+            ("batch", 2), ("checkpoint", 1),
+            ("batch", 2), ("checkpoint", 2),
+            ("batch", 1), ("checkpoint", 3),
+        ]
+
+    def test_batch_cb_receives_all_records_cumulatively(self) -> None:
+        rows = _rows("a", "b", "c", "d")
+        stored: dict[str, str] = {}
+        generate_embeddings(
+            rows, model=FakeModel(), batch_size=2,
+            batch_cb=lambda recs: stored.update({r.sense_key: r.text_sha256 for r in recs}),
+        )
+        assert set(stored) == {"a|noun|t", "b|noun|t", "c|noun|t", "d|noun|t"}
+
+    def test_batch_cb_exception_aborts_before_checkpoint(self) -> None:
+        # a persist failure must not advance the checkpoint: rerun resumes
+        # from the last successfully persisted batch, nothing silently lost
+        rows = _rows("a", "b", "c", "d")
+        seen: list[Checkpoint] = []
+
+        def failing_persist(_records: list[EmbeddingRecord]) -> None:
+            raise RuntimeError("pg down")
+
+        with pytest.raises(RuntimeError, match="pg down"):
+            generate_embeddings(
+                rows, model=FakeModel(), batch_size=2,
+                checkpoint_cb=seen.append, batch_cb=failing_persist,
+            )
+        assert seen == []  # no checkpoint persisted past the failure
+
     def test_records_shape_and_version(self) -> None:
         records, report = generate_embeddings(_rows("a"), model=FakeModel())
         rec = records[0]

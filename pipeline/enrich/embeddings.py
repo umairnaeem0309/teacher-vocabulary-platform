@@ -194,6 +194,7 @@ def generate_embeddings(
     batch_size: int = DEFAULT_BATCH_SIZE,
     checkpoint: Checkpoint | None = None,
     checkpoint_cb: Callable[[Checkpoint], None] | None = None,
+    batch_cb: Callable[[list[EmbeddingRecord]], None] | None = None,
 ) -> tuple[list[EmbeddingRecord], EmbeddingsReport]:
     """Generate embeddings for rows, skipping unchanged senses.
 
@@ -203,6 +204,10 @@ def generate_embeddings(
     sha matches are skipped; others are (re-)embedded.
     ``checkpoint``/``checkpoint_cb``: after each batch the updated
     Checkpoint is passed to checkpoint_cb for persistence (section 88).
+    ``batch_cb``: after each successful batch, its records are passed to
+    the callback BEFORE the checkpoint advances — the caller persists
+    them so the checkpoint never runs ahead of stored data. An exception
+    from the callback aborts generation without advancing the checkpoint.
     """
     model = model or EmbeddingModel.shared()
     existing = existing_shas or {}
@@ -220,10 +225,11 @@ def generate_embeddings(
             str(get("gloss") or ""),
             list(get("examples") or []),
         )
+    texts_sha256 = {key: text_sha256(value) for key, value in texts.items()}
 
     pending: list[str] = []
     for key in sorted(texts):
-        sha = text_sha256(texts[key])
+        sha = texts_sha256[key]
         if existing.get(key) == sha:
             report.skipped_unchanged += 1
         else:
@@ -240,15 +246,21 @@ def generate_embeddings(
         except Exception:  # noqa: BLE001 - a failed batch is counted, not fatal
             report.failed += len(batch_keys)
             continue
-        for key, vec in zip(batch_keys, vectors, strict=True):
-            records.append(
-                EmbeddingRecord(
-                    sense_key=key,
-                    embedding=vec,
-                    model_version=model_version,
-                    text_sha256=text_sha256(texts[key]),
-                )
+        batch_records = [
+            EmbeddingRecord(
+                sense_key=key,
+                embedding=vec,
+                model_version=model_version,
+                text_sha256=texts_sha256[key],
             )
+            for key, vec in zip(batch_keys, vectors, strict=True)
+        ]
+        if batch_cb is not None:
+            # persist BEFORE the checkpoint advances (resume guard: the
+            # checkpoint must never claim work that is not stored)
+            batch_cb(batch_records)
+        records.extend(batch_records)
+        for key in batch_keys:
             if key in existing:
                 report.reembedded_changed += 1
         report.generated += len(batch_keys)

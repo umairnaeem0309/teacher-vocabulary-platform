@@ -250,8 +250,9 @@ Status: **COMPLETE**
 
 ## Phase 12 — Embeddings
 Status: **COMPLETE (code, tests, docs)** — full 41,690-sense generation
-is a ~5.4h CPU job; launch command documented in docs/embeddings.md
-(resumable, checkpointed, safe to interrupt; run at operator's leisure).
+RUNNING detached since 2026-09-28 (measured ~0.75 senses/s on real texts
+→ ≈15h; resumable, checkpointed, safe to interrupt; progress in
+data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 
 - [x] D014: model lock BAAI/bge-m3 (1024-dim, L2-normalized, cosine),
   recipe emb-v1 `headword | pos | gloss | ex1 | ex2` (max 2 examples,

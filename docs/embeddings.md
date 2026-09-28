@@ -83,8 +83,9 @@ PYTHONIOENCODING=utf-8 uv run python ../scripts/phase12_embeddings_smoke.py \
   --limit 96 --probes
 ```
 
-Full generation over all 41,690 senses (CPU; expect hours — run inside
-`tmux`/`screen`-equivalent or a detached process; safe to Ctrl-C):
+Full generation over all 41,690 senses (CPU; on this workstation the
+measured rate is ~0.75 senses/s on real texts → ≈ 15 hours; the run is
+checkpointed and safe to interrupt — rerun the same command to resume):
 
 ```bash
 cd backend
@@ -97,6 +98,18 @@ PYTHONIOENCODING=utf-8 uv run python ../scripts/phase12_embeddings_smoke.py \
 - `--limit N` / `--full` choose the input set; `--batch-size` tunes
   throughput; `--probes` prints nearest-sense checks
   (bank-money / bank-river / football).
+
+### Running detached on Windows
+
+Interactive `uv run` invocations die with their parent terminal. The
+working pattern is a PowerShell `Start-Process` launcher with unbuffered
+output and offline env (see `data/construction/phase12_launch.ps1`,
+git-ignored): `python -u` + `-RedirectStandardOutput/-RedirectStandardError`
+into `data/construction/phase12_full.log`, `WorkingDirectory backend/`,
+`HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1`. Live progress: the checkpoint
+file `data/construction/emb-v1_checkpoint.json` (`last_sense_key`,
+`batches_done`). Do not use a one-shot `schtasks` trigger for a long run
+(it double-fires at its scheduled time).
 
 ## Model download notes (Windows, this workstation)
 

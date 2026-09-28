@@ -5,8 +5,10 @@ Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
 Phase 12 — Embeddings: **COMPLETE (code + docs + tests)**; full 41,690-sense
- generation is a ~5.4h CPU job, launch command in docs/embeddings.md —
- resumable (--full --resume), safe to interrupt, checkpointed.
+ generation RUNNING detached (launched 2026-09-28, phase12_launch.ps1 →
+ Start-Process; log data/construction/phase12_full.log, progress via
+ emb-v1_checkpoint.json). Measured ~0.75 senses/s on real texts → ≈15h
+ total; resumable (--full --resume), safe to interrupt.
 Next: Phase 13 — PostgreSQL vocabulary import (§89)
 
 ## Completed work
@@ -37,9 +39,10 @@ Phase 12:
   full 41,690-sense run. BGE-M3 weights were downloaded via ModelScope
   mirror (HF CDN stalled repeatedly on this network) and sha256-verified
   (b5e0ce34…daad38) into the HF cache; model loads with HF_HUB_OFFLINE=1.
-- Throughput measured on CPU: ~2.2 texts/s → full run ≈ 5.4h
-  (longer than the 1–3h estimate); commands documented in
-  docs/embeddings.md.
+- Throughput: benchmark 2.2 texts/s on synthetic repeats; real-run
+  measurement ~0.75 senses/s (longer gloss+example texts) → full run
+  ≈ 15h, launched detached (docs/embeddings.md documents the method).
+  Post-benchmark honesty fix: initial 5.4h estimate was benchmark-only.
 Phase 11:
 - Example integration (pipeline/enrich/examples.py, ex-v1, D013):
   Wiktextract sense examples + WordNet synset examples (joined through

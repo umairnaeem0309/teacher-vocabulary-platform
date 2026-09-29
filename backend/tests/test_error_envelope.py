@@ -38,10 +38,8 @@ class TestNotImplementedStubs:
         assert body["error"]["code"] == "not_implemented"
         assert body["error"]["details"]["phase"] == 17
 
-    def test_search_stub_is_501(self, client: TestClient) -> None:
-        resp = client.post("/api/v1/vocabulary/search")
-        assert resp.status_code == 501
-        assert resp.json()["error"]["details"]["phase"] == 14
+    # search was a 501 stub until Phase 14; the real endpoint is covered
+    # by tests/test_search.py (requires_db, like all PG-backed suites).
 
     def test_assignments_bulk_stub_is_501(self, client: TestClient) -> None:
         resp = client.post("/api/v1/assignments/bulk")

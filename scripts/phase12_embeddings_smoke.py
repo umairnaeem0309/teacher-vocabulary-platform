@@ -92,6 +92,11 @@ def main() -> int:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--probes", action="store_true")
+    parser.add_argument(
+        "--reindex",
+        action="store_true",
+        help="drop and rebuild the HNSW index after bulk loading",
+    )
     args = parser.parse_args()
 
     t0 = time.time()
@@ -181,6 +186,26 @@ def main() -> int:
             print(f"probe {text_in!r}:")
             for key, dist in neighbors:
                 print(f"    {dist:.4f}  {key}")
+
+    if args.reindex:
+        # MANDATORY after bulk generation: an HNSW graph grown by incremental
+        # inserts (index built empty before the load) has degraded recall —
+        # during Phase 14 diagnosis, an exact self-query returned distance
+        # 0.0 by direct lookup but did not appear in the index-ordered
+        # top-50 even with hnsw.ef_search=200. Rebuilding the index over the
+        # loaded rows fixed recall completely. (D014 addendum.)
+        from sqlalchemy import text as _text
+
+        with engine.begin() as conn:
+            rt0 = time.time()
+            conn.execute(_text("DROP INDEX IF EXISTS ix_sense_embeddings_hnsw"))
+            conn.execute(
+                _text(
+                    "CREATE INDEX ix_sense_embeddings_hnsw ON sense_embeddings "
+                    "USING hnsw (embedding vector_cosine_ops)"
+                )
+            )
+            print(f"hnsw index rebuilt in {time.time() - rt0:.1f}s")
 
     engine.dispose()
     print(f"done in {time.time() - t0:.1f}s")

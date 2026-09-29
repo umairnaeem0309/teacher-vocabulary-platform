@@ -197,10 +197,32 @@ senses, 1 zero-evidence sense retained.
 
 ## Search Architecture
 
-Not yet implemented (Phase 14). Planned: 4 layers — exact/text (PostgreSQL
-full-text), filters, semantic (precomputed BGE-M3 embeddings + pgvector
-similarity), deterministic hybrid ranking. Only the teacher's query is
-embedded at search time.
+Implemented (Phase 14, D016; full spec + benchmark in docs/search.md).
+One endpoint: POST /api/v1/vocabulary/search.
+
+- Layer 1 — exact/prefix (headword + forms, LIKE) and weighted
+  PostgreSQL FTS: generated tsvector columns (A-weighted headword,
+  B-weighted definition preview; translations and full definitions
+  separate) with GIN indexes, 'simple' dictionary (mixed EN/PL corpus),
+  websearch syntax. Polish queries hit translation FTS.
+- Layer 2 — filters composed IN SQL on both signal paths (same base
+  filter set): CEFR, POS, priority levels/priority_min, category
+  subtree (recursive), frequency bands/max rank, flags, student
+  assignment/state/due/difficulty/teacher overrides (§22 forbids
+  client-side filtering). Filter values enumerable via
+  GET /api/v1/vocabulary/search/filters.
+- Layer 3 — semantic: teacher's query embedded once (BGE-M3, the corpus
+  model); cosine over pgvector HNSW of precomputed emb-v1 vectors; rows
+  are never embedded at search time. Cross-lingual (PL↔EN) by design.
+- Layer 4 — hybrid: reciprocal-rank fusion, documented deterministic
+  blend `0.60·lexical + 0.35·semantic + 0.05·metadata` (+0.25 prefix
+  floor); ties break by headword then sense_key; unit-tested (§20).
+- Browse semantics: empty query and non-relevance sorts are full-set
+  SQL-ordered pages; strict multi-word lexical queries fall back to a
+  loose OR-join on zero hits (§21 topic phrases).
+- Operational rule: the HNSW index must be REBUILT after bulk embedding
+  loads (phase12 script --reindex) — an incrementally-grown graph had
+  near-zero recall (diagnosed Phase 14, D016).
 
 ## Embedding Architecture
 

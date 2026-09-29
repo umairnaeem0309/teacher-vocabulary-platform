@@ -37,6 +37,9 @@ strict = false
 warn_unused_ignores = true
 disallow_untyped_defs = true
 plugins = []
+# App modules import the repo-root `pipeline` package (search engine,
+# storage writers); tests import it via pythonpath already.
+mypy_path = [".."]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -314,10 +314,42 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
   persistence verified live: checkpoint N -> N×32 rows)
 - [x] Commit dated 2026-09-28 (+0500)
 
-## Phases 14–29 (queued; detailed tasks added as each starts)
-14. Search backend (exact/full-text/semantic/hybrid + filters + sorting + pagination, benchmarked)
+## Phase 14 (sections 20–22: four-layer search) — COMPLETE 2026-09-29
+
+- [x] Migration a7f3b2c9d4e1: generated tsvector columns on
+  vocabulary_senses (A-weighted headword, B-weighted definition preview),
+  sense_translations, sense_definitions + GIN indexes; ORM updated
+- [x] pipeline/search/engine.py: Layer 1 exact/prefix (headword+forms) +
+  weighted FTS (senses, Polish translations, definitions); Layer 2 filters
+  composed in SQL (CEFR/POS/priority/category subtree/bands/flags/student
+  assignment+state+due/difficulty/teacher overrides); Layer 3 semantic
+  (BGE-M3 query embed, HNSW cosine, never embeds rows at search time);
+  Layer 4 hybrid RRF blend 0.60/0.35/0.05 + prefix floor (D016, docs/search.md)
+- [x] Two-stage lexical fallback: strict multi-word query retries loose
+  OR on zero hits (§21 topic phrases answer; precision preserved)
+- [x] Browse semantics: empty query + non-relevance sorts are full-set
+  SQL-ordered pages (fixed lex-score truncation bug before Python re-sort)
+- [x] API: POST /api/v1/vocabulary/search + GET .../search/filters;
+  request/response Pydantic models; stub test replaced (error envelope)
+- [x] HNSW operational rule: rebuild index after bulk loads (--reindex
+  flag on phase12 script); incremental-graph recall failure diagnosed
+  (self distance 0.0 direct, absent from index top-50 at ef_search=200)
+- [x] Tests (21): ranking units (RRF/metadata/weights/determinism/exact-
+  beats-semantic), API lexical/browse/pagination/determinism, §21 queries
+  (all 6 return hits), §22 assignment filter with real student rows
+  (assigned vs NOT ASSIGNED, in SQL), semantic self-match (sha-verified
+  recipe from construction.sqlite), hybrid blend + rank provenance;
+  semantic tests skip cleanly while the Phase 12 run is in progress
+- [x] scripts/phase14_search_benchmark.py: per-mode latency + top-3
+  probes; numbers captured in docs/search.md (inflated ~2x by the
+  concurrent embedding run, stated honestly)
+- [x] Docs: D016, docs/search.md, current-state.md, architecture.md
+- [x] Gates: pytest all green (incl. 21 search tests), ruff/mypy clean
+- [x] Commit dated 2026-09-29 (+0500)
+
+## Phases 15–29 (queued; detailed tasks added as each starts)
 15. Teacher authentication (Argon2id, server-side sessions)
-16. Vocabulary UI (dense spreadsheet table, TanStack Table)
+16. Vocabulary UI (dense spreadsheet table, TanStack Table, backed by the search API)
 17. Students (list/create/edit/deactivate/profile)
 18. Assignment (single/bulk/set/search-result; duplicate prevention; not-assigned filter)
 19. Vocabulary sets

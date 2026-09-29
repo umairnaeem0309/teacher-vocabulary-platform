@@ -793,3 +793,73 @@ schema correctness without holding production data hostage.
 ## Status
 
 Accepted
+
+# Decision D016
+
+Date: 2026-09-29
+Phase: 14 (§20–22)
+
+## Context
+
+Phase 14 delivers four-layer search (exact/lexical, filters, semantic,
+hybrid). Two design areas needed decisions: the ranking blend itself
+(§20 demands it be documented and tested), and how §21's topic phrases
+("airport problems", "things needed when traveling") can be answered by
+a lexical layer that only matches terms actually present.
+
+## Decision
+
+- **Hybrid blend (§20)**: reciprocal-rank fusion with documented
+  weights — `score = 0.60·lexical + 0.35·semantic + 0.05·metadata`,
+  `rrf(rank) = 1/(60+rank)`, metadata = common (freq ≤ 3000) + high
+  priority tie-breaker, plus a 0.25 lexical floor for exact/prefix
+  headword hits so an exact hit cannot lose to a thesaurus-style
+  semantic hit. Full spec in `docs/search.md`; constants unit-tested
+  for determinism in `tests/test_search.py::TestRankingUnits`.
+- **Two-stage lexical fallback (§21)**: strict multi-word websearch
+  queries (all terms) retry as a loose OR-join when they return
+  nothing, so topic phrases answer through partial matches instead of
+  returning an empty page. The fallback is deterministic and only
+  triggers on zero strict hits.
+- **Browse semantics**: empty query (any mode) or non-relevance sorts
+  are filtered browses over the FULL set — SQL orders and paginates;
+  relevance pages alone re-sort in Python. This fixes a real bug where
+  `sort=priority` browses were lex-score-truncated before sorting.
+- **HNSW after bulk load (operational, §88/§20)**: an HNSW index built
+  empty and grown by incremental inserts had catastrophic recall
+  (direct lookup distance 0.0; same sense absent from the index-ordered
+  top-50 even at `hnsw.ef_search=200`). Rule: after any bulk embedding
+  generation, rebuild `ix_sense_embeddings_hnsw` — automated as
+  `phase12_embeddings_smoke.py --reindex`. Documented in
+  `docs/search.md` and D014's script.
+- **API surface**: `POST /api/v1/vocabulary/search` (request/response
+  Pydantic models over `pipeline/search/engine.py`) plus
+  `GET /api/v1/vocabulary/search/filters` enumerating filter values.
+  §22's student/assignment/state/due filters compose in SQL on both
+  lexical and semantic paths (same filter set; never client-side).
+
+## Reason
+
+Search correctness is mostly product semantics: what counts as an
+answer. The blend is deliberately simple and documented rather than
+learned, so teachers can reason about ordering; the two-stage fallback
+keeps §21's promise ("semantically relevant even if the exact phrase
+does not occur") without weakening the strict default. The HNSW rule
+records a production-grade operational lesson discovered before real
+teachers depend on semantic search.
+
+## Alternatives considered
+
+- Learned/ML ranking (rejected: opaque, untestable against the
+  documented contract; revisit only with real usage data).
+- Loose OR as the default (rejected: pollutes strict single-term
+  results; fallback-only preserves precision).
+- pgvector full-scan instead of HNSW (deferred: fine at 42k vectors,
+  but the index exists and — after rebuild — behaves; revisit at
+  Phase 28 load testing).
+- Client-side filtering of top-k (rejected: explicitly forbidden by
+  §22).
+
+## Status
+
+Accepted

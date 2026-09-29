@@ -1,21 +1,26 @@
 # Current State
 
-Last updated: after Phase 13 (see plan.md for phase list)
+Last updated: after Phase 14 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 13 — PostgreSQL vocabulary import (§89): **COMPLETE (code + docs +
-tests + real import)**. 41,687/41,690 senses in PG (3 junk rows rejected
-and reported), re-import idempotent (inserted=0, updated=41,687, UUIDs
-stable), priority history (prio-v1 + prio-v1.1) and denormalized
-current-priority columns populated.
+Phase 14 — Search backend (§20–22): **COMPLETE (code + docs + tests +
+benchmark)**. Four-layer search live on POST /api/v1/vocabulary/search:
+exact/prefix + weighted FTS (headword, Polish translations, definitions),
+SQL-composed filters (incl. §22 student assignment/state), semantic
+(BGE-M3 + HNSW) and hybrid RRF blend (D016, docs/search.md). All six §21
+example queries answer; benchmark captured in docs/search.md.
+Phase 13 — PostgreSQL vocabulary import (§89): COMPLETE. 41,687/41,690
+senses in PG (3 junk rows rejected and reported), re-import idempotent,
+priority history + denormalized current-priority columns populated.
 Phase 12 — Embeddings: code/tests/docs complete; full 41,690-sense
 generation RUNNING detached (relaunched 2026-09-28 after two external
 DB wipes, see D015; log data/construction/phase12_full.log, progress
-via emb-v1_checkpoint.json). Measured ~0.75 senses/s on real texts →
-≈15h total; resumable (--full --resume), safe to interrupt; per-batch
-persistence means checkpoint == stored rows.
-Next: Phase 14 — Search backend (§90)
+via emb-v1_checkpoint.json). ~24k embeddings stored at Phase 14 time;
+resumable (--full --resume), safe to interrupt; **HNSW index must be
+rebuilt after the bulk load completes (--reindex; D016)** — the
+incrementally-grown graph had near-zero recall, rebuild fixed it.
+Next: Phase 15 — Teacher authentication (Argon2id, server-side sessions)
 
 ## Completed work
 Phase 13:
@@ -226,8 +231,9 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 251 passed (incl. 17 import, 16 embeddings, 7 pgvector,
-  sandboxed migration roundtrip)
+- Backend pytest: 271 passed (incl. 21 search, 17 import, 16 embeddings,
+  7 pgvector, sandboxed migration roundtrip; search semantic tests skip
+  cleanly if no embeddings exist yet)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)

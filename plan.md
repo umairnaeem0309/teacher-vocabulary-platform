@@ -347,8 +347,30 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 - [x] Gates: pytest all green (incl. 21 search tests), ruff/mypy clean
 - [x] Commit dated 2026-09-29 (+0500)
 
-## Phases 15–29 (queued; detailed tasks added as each starts)
-15. Teacher authentication (Argon2id, server-side sessions)
+## Phase 15 (section 91: teacher authentication) — COMPLETE 2026-09-29
+
+- [x] app/core/auth.py: Argon2id hashing (argon2-cffi defaults), 32-byte
+  opaque session tokens stored as SHA-256 hashes (never plaintext), 24h
+  TTL, lazy pruning of expired sessions, idempotent revocation,
+  registration validation (email/name/password policy)
+- [x] Endpoints replacing stubs: POST /auth/bootstrap (first teacher
+  only; 403 bootstrap_closed forever after), POST /auth/login (no user
+  enumeration + decoy hash timing), GET /auth/session (§40 dependency
+  reference), POST /auth/logout (server-side revocation + cookie clear)
+- [x] Cookie: session_token, HttpOnly, SameSite=Lax, Secure in
+  production/staging, Max-Age = TTL; app.state.settings wired
+- [x] Tests (13): §91 checklist — valid login, invalid password,
+  expired session (dead + pruned), unauthorized request, logout —
+  plus bootstrap closure, cookie flags, hash-at-rest (token never in
+  DB), garbage cookie, inactive teacher, anti-enumeration, validation
+- [x] Live bug caught: lazy prune rolled back on a non-committing
+  connection; resolve now runs in engine.begin()
+- [x] Gates: pytest 284 passed; ruff/mypy clean
+- [x] Docs: D017, current-state.md, architecture.md, .env.example
+- [x] Commit dated 2026-09-29 (+0500)
+
+## Phases 16–29 (queued; detailed tasks added as each starts)
+16. Vocabulary UI (dense spreadsheet table, TanStack Table, backed by the search API)
 16. Vocabulary UI (dense spreadsheet table, TanStack Table, backed by the search API)
 17. Students (list/create/edit/deactivate/profile)
 18. Assignment (single/bulk/set/search-result; duplicate prevention; not-assigned filter)

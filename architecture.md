@@ -248,8 +248,17 @@ immutable review event (Phase 20–21).
 
 ## Authentication
 
-Email + password, Argon2id hashing, HTTP-only session cookie, PostgreSQL
-session storage (Phase 15). Students have no credentials.
+Implemented (Phase 15, D017). Email + password with Argon2id hashing
+(argon2-cffi defaults). Sessions are fully server-side: the HTTP-only
+cookie (`session_token`, SameSite=Lax, Secure in production) carries a
+32-byte opaque token whose SHA-256 hash — never the token — is stored
+in `teacher_sessions` (24h TTL, instant revocation via `revoked_at`,
+lazy pruning of expired rows). `POST /auth/bootstrap` creates the first
+teacher and closes forever (403 `bootstrap_closed` afterwards); there
+is no public registration. Login is enumeration-safe (uniform 401,
+decoy hash for unknown emails). `GET /auth/session` authenticates via
+the shared dependency that protected endpoints will reuse (§40).
+Students have no credentials.
 
 ## Security
 

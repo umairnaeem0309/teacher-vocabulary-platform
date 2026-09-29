@@ -60,6 +60,9 @@ def create_app() -> FastAPI:
     # Uniform error envelope for every failure mode (section 55).
     register_exception_handlers(app)
 
+    # Expose settings to request handlers (auth cookie flags, etc.).
+    app.state.settings = settings
+
     # Domain routers (section 54) — one per domain, no giant router.
     for router in domain_routers:
         app.include_router(router, prefix="/api/v1")

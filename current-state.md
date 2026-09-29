@@ -1,15 +1,23 @@
 # Current State
 
-Last updated: after Phase 14 (see plan.md for phase list)
+Last updated: after Phase 15 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
-Phase 14 — Search backend (§20–22): **COMPLETE (code + docs + tests +
-benchmark)**. Four-layer search live on POST /api/v1/vocabulary/search:
-exact/prefix + weighted FTS (headword, Polish translations, definitions),
-SQL-composed filters (incl. §22 student assignment/state), semantic
-(BGE-M3 + HNSW) and hybrid RRF blend (D016, docs/search.md). All six §21
-example queries answer; benchmark captured in docs/search.md.
+Phase 15 — Teacher authentication (§5/§39/§91): **COMPLETE**. Argon2id
+password hashing; server-side sessions (opaque token in an HTTP-only
+cookie, SHA-256 hash in PostgreSQL, 24h TTL, lazy prune, instant
+revocation); bootstrap-only first-teacher creation (window closes
+forever after; no public registration); login with anti-enumeration
+(decoy hash, uniform 401). Endpoints: /auth/bootstrap, /auth/login,
+/auth/session, /auth/logout (replacing Phase 4 stubs). The §40
+"authenticated teacher" dependency is ready for protected endpoints.
+Phase 14 — Search backend (§20–22): COMPLETE. Four-layer search on
+POST /api/v1/vocabulary/search: exact/prefix + weighted FTS (headword,
+Polish translations, definitions), SQL-composed filters (incl. §22
+student assignment/state), semantic (BGE-M3 + HNSW) and hybrid RRF
+blend (D016, docs/search.md). All six §21 example queries answer;
+benchmark captured in docs/search.md.
 Phase 13 — PostgreSQL vocabulary import (§89): COMPLETE. 41,687/41,690
 senses in PG (3 junk rows rejected and reported), re-import idempotent,
 priority history + denormalized current-priority columns populated.
@@ -231,9 +239,9 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 271 passed (incl. 21 search, 17 import, 16 embeddings,
-  7 pgvector, sandboxed migration roundtrip; search semantic tests skip
-  cleanly if no embeddings exist yet)
+- Backend pytest: 284 passed (incl. 13 auth, 21 search, 17 import,
+  16 embeddings, 7 pgvector, sandboxed migration roundtrip; search
+  semantic tests skip cleanly if no embeddings exist yet)
 - Frontend vitest: 19 passed (route coverage 15, API client 4)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)

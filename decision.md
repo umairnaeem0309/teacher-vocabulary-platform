@@ -863,3 +863,71 @@ teachers depend on semantic search.
 ## Status
 
 Accepted
+
+# Decision D017
+
+Date: 2026-09-29
+Phase: 15 (§5, §39, §91)
+
+## Context
+
+Phase 15 adds teacher authentication: email + password with Argon2id
+hashing, server-side sessions in PostgreSQL behind an HTTP-only cookie,
+and a bootstrap procedure because public registration must stay closed
+(§91). The Phase 2 `teachers`/`teacher_sessions` schema (opaque token
+stored hashed, §56) was already in place and is now activated.
+
+## Decision
+
+- **Password hashing**: Argon2id via argon2-cffi with library defaults
+  (64 MiB memory, time_cost 3) — OWASP-aligned; parameter changes
+  invalidate old hashes gracefully on next verification attempt.
+- **Sessions**: cookie carries only a 32-byte random token
+  (`secrets.token_urlsafe`); the DB stores its SHA-256 hash (never the
+  token — a DB dump must not yield usable credentials). TTL is 24h.
+  Cookie flags: HttpOnly, SameSite=Lax, Secure in production/staging.
+- **Bootstrap**: `POST /auth/bootstrap` creates the first teacher and
+  logs them in; with ≥1 teacher present it answers 403
+  `bootstrap_closed` forever. No public registration endpoint exists.
+  Re-bootstrap attempts reveal nothing about password strength or
+  existing accounts (closure check precedes credential validation).
+- **Login anti-enumeration**: unknown email and wrong password return
+  the same 401 message; unknown emails burn a decoy Argon2 hash so both
+  paths take comparable time.
+- **Lazy pruning**: expired sessions are deleted on first resolve
+  attempt (the 401 also cleans up); revocation sets `revoked_at` and is
+  idempotent. The resolve path runs in a committing transaction — a
+  rolled-back prune was caught live in testing.
+- **Authorization**: `GET /auth/session` is the reference
+  implementation of the §40 "authenticated teacher" check; protected
+  domain endpoints (Phase 17+) will reuse the same dependency.
+- **Endpoints**: `POST /auth/bootstrap`, `POST /auth/login`,
+  `GET /auth/session`, `POST /auth/logout` — replacing the Phase 4
+  501 stubs. `email-validator` enforces EmailStr at the schema layer.
+
+## Reason
+
+Sessions were kept server-side (not JWT) because revocation must be
+instant and authoritative (logout, compromised token, deactivated
+teacher) and the platform already requires PostgreSQL for every
+request. Hashing the token at rest costs nothing and removes the
+session table from the "what a dump leaks" list. The bootstrap window
+is the simplest honest bootstrap: one command, no installer, no
+temporary passwords to transmit.
+
+## Alternatives considered
+
+- JWT/stateless sessions (rejected: revocation requires a denylist,
+  reintroducing server state; token payload inspection is useless —
+  one teacher role).
+- Registration endpoints with an invite/activation flow (rejected for
+  now: single-teacher deployments are the norm at this stage; revisit
+  with multi-teacher support in a later phase).
+- Argon2 via passlib (rejected: passlib's argon2 backend is unmaintained
+  against current argon2-cffi; use argon2-cffi directly).
+- Store the plaintext token for "logout everywhere" by token id
+  (rejected: unnecessary — sessions are revocable by hash lookup).
+
+## Status
+
+Accepted

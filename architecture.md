@@ -307,6 +307,23 @@ Students have no credentials.
   the search engine (anti-join over student_vocabulary) and are exposed
   on both POST /vocabulary/search and the GET browse wrapper.
 
+## FSRS scheduling & reviews (Phase 20)
+
+- Library-backed py-fsrs 6.3.2 (FSRS-6), deterministic: fuzzing off,
+  learning/relearning steps empty (§31 documented transitions, D022).
+- The exact card persists as `student_fsrs_states.state_json`
+  (migration b8e5d1f2a3c4); stability/difficulty/reps/lapses are
+  denormalized for the due-queue scan and dashboards.
+- Rating mapping (§6): HARD→Again(1), MEDIUM→Hard(2), EASY→Good(3);
+  exposed at GET /fsrs/parameters.
+- Learning-state derivation is outcome-based (last rating + repetition
+  count), documented in D022; MASTERED is a teacher override only.
+- Every review appends an immutable review_events row (§33) with
+  previous/new card JSON and due dates; reps/lapses derive from this
+  history, never overwritten.
+- Endpoints (teacher-authenticated): GET /reviews/due (overdue → due
+  today → new), POST /reviews, GET /fsrs/parameters.
+
 ## Vocabulary sets (Phase 19)
 
 - Sets are references only: `vocabulary_set_items` has

@@ -1125,3 +1125,60 @@ existing master senses (§26 — sets never duplicate vocabulary).
 ## Status
 
 Accepted
+
+# Decision D022
+
+Date: 2026-09-30
+Phase: 20 (§6, §31-35)
+
+## Context
+
+Phase 20 adds FSRS scheduling and the review flow. The spec mandates a
+library-backed FSRS (§90 preview), the HARD/MEDIUM/EASY teacher control
+with the exact internal mapping, deterministic documented state
+transitions, and immutable review history.
+
+## Decision
+
+1. **py-fsrs 6.3.2** (open-spaced-repetition/py-fsrs, FSRS-6) with
+   fuzzing DISABLED and learning/relearning steps EMPTY: §31 requires
+   deterministic, documentable transitions, so interval fuzz and
+   minute-scale micro steps (which would make due times and state
+   moves nondeterministic per deployment) are off. The exact card is
+   persisted as JSON (new student_fsrs_states.state_json column,
+   migration b8e5d1f2a3c4) so scheduler input/output round-trips
+   losslessly; stability/difficulty/reps/lapses remain denormalized
+   for queue scans and dashboards.
+2. **Rating mapping is exactly the spec's**: HARD->Again(1),
+   MEDIUM->Hard(2), EASY->Good(3); Rating.Easy(4) is unreachable from
+   the three-button UI. Exposed at GET /fsrs/parameters.
+3. **Learning-state derivation is outcome-based, not FSRS-state-based.**
+   Discovery: with learning steps disabled, py-fsrs 6 graduates a new
+   card straight to the Review state even on Again — FSRS state alone
+   cannot express "struggled". Deterministic mapping instead:
+   never reviewed -> NEW; last rating HARD -> LEARNING; first
+   non-HARD review -> ENCOUNTERED; later non-HARD -> REVIEWING;
+   MASTERED only by explicit teacher override (PATCH).
+4. **reps/lapses derive from review_events** (py-fsrs 6 cards carry no
+   counters): reps = event count, lapses = Again-events whose previous
+   card state was Review (a true lapse). History stays the single
+   source of truth (§33).
+5. **Queue = overdue, due today, then new** (§35): SQL over
+   student_fsrs_states with bucketed ordering; future-due cards are
+   excluded, new (never-reviewed) rows join via LEFT JOIN NULL branch.
+   Review selection beyond a student's queue (sets, filters, search)
+   is composed from the §22 search filters and arrives with the
+   dashboard/review polish phases.
+
+## Alternatives considered
+
+- Implementing FSRS math in-repo (rejected: spec says library-backed;
+  SM-2 explicitly forbidden).
+- Keeping fuzzing on (rejected: nondeterministic scheduling violates
+  §31's documented-transitions requirement and reproducible tests).
+- Storing only scalar FSRS fields (rejected: loses the exact card;
+  JSON round-trip is required to replay the scheduler faithfully).
+
+## Status
+
+Accepted

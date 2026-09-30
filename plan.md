@@ -483,9 +483,37 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 - [x] Docs: D021, current-state.md, architecture.md
 - [x] Commit dated 2026-09-30 (+0500), no AI attribution
 
-## Phases 20–29 (queued; detailed tasks added as each starts)
-19. Vocabulary sets — COMPLETE above
-20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures)
+## Phase 20 (sections 31-35: FSRS scheduling + review flow) — COMPLETE 2026-09-30
+
+- [x] py-fsrs 6.3.2 (FSRS-6) added; deterministic config: fuzzing off,
+  learning/relearning steps empty (§31 documented transitions; D022);
+  rating mapping exactly HARD→Again(1), MEDIUM→Hard(2), EASY→Good(3)
+- [x] Migration b8e5d1f2a3c4: student_fsrs_states.state_json (full card
+  round-trip; scalars stay denormalized for queue scans)
+- [x] app/core/reviews.py: record-review (FSRS update + §33 immutable
+  event with previous/new card state + due dates + §31 state move),
+  due queue (overdue → due today → new; SQL bucketed ordering),
+  outcome-based learning-state derivation (NEW/ENCOUNTERED/LEARNING/
+  REVIEWING; MASTERED only via teacher override — D022)
+- [x] Endpoints (teacher-authenticated, replacing stubs): GET
+  /reviews/due, POST /reviews, GET /fsrs/parameters
+- [x] Frontend: live review screen (§32) — one card at a time, reveal,
+  HARD/MEDIUM/EASY, keyboard shortcuts 1/2/3 + H/M/E + Space, in-flight
+  duplicate-submission guard, queue-clear state
+- [x] Tests (6): §6 mapping, deterministic interval fixtures (grow 2d →
+  ~2wk; lapse collapse), due-queue ordering + post-review exclusion,
+  state moves, §33 chain integrity (previous==prior new, first has no
+  prior), validation + §40 isolation, parameters endpoint
+- [x] Live verification: queue 1 → EASY (grade 3, ENCOUNTERED, ~1d out,
+  queue 0) → HARD (grade 1, LEARNING, reps 2) → history intact;
+  cleaned up
+- [x] Gates: backend ruff/mypy clean, 314 passed; frontend tsc/eslint
+  clean, vitest 24/24, next build clean
+- [x] Docs: D022, current-state.md, architecture.md
+- [x] Commit dated 2026-09-30 (+0500), no AI attribution
+
+## Phases 21–29 (queued; detailed tasks added as each starts)
+20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures) — COMPLETE above
 19. Vocabulary sets
 20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures)
 21. Review interface (one-at-a-time, keyboard shortcuts, duplicate-submission guard)

@@ -1,9 +1,18 @@
 # Current State
 
-Last updated: after Phase 19 (see plan.md for phase list)
+Last updated: after Phase 20 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 20 — FSRS scheduling + review flow (§31–§35): **COMPLETE**.
+Library-backed py-fsrs 6.3.2, deterministic (fuzzing off, no micro
+steps), rating mapping exactly HARD→Again / MEDIUM→Hard / EASY→Good.
+Full card persisted as JSON (migration b8e5d1f2a3c4); reps/lapses
+derived from the immutable §33 event history. Outcome-based learning-
+state derivation documented in D022 (NEW/ENCOUNTERED/LEARNING/
+REVIEWING; MASTERED = teacher override only). Due queue: overdue →
+due today → new in SQL. Live review screen with keyboard shortcuts
+and duplicate-submission guard. Live flow verified end-to-end.
 Phase 19 — Vocabulary sets (§26): **COMPLETE**. Sets are pure
 references to master senses ((set_id, sense_id) PK — structurally
 immune to vocabulary duplication, D021). CRUD + membership with the
@@ -278,9 +287,10 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 308 passed (incl. 13 auth, 21 search, 17 import,
+- Backend pytest: 314 passed (incl. 13 auth, 21 search, 17 import,
   8 vocabulary browse/detail, 6 students, 7 assignments, 5 sets,
-  16 embeddings, 7 pgvector, sandboxed migration roundtrip)
+  6 reviews/FSRS, 16 embeddings, 7 pgvector, sandboxed migration
+  roundtrip)
 - Frontend vitest: 24 passed (route coverage 15, API client 4,
   table URL state 5)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,

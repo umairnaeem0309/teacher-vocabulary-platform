@@ -1,11 +1,297 @@
-import { PagePlaceholder } from "@/components/PagePlaceholder";
+"use client";
 
-export default function VocabularyPage() {
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import {
+  getCoreRowModel,
+  useLegacyTable,
+} from "@tanstack/react-table/legacy";
+import type { LegacyColumnDef } from "@tanstack/react-table/legacy";
+import { flexRender } from "@tanstack/react-table";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+
+import { FilterPanel } from "@/components/vocabulary/FilterPanel";
+import { SessionBar } from "@/components/SessionBar";
+import { browseVocabulary, fetchFilterFacets, postSearch } from "@/lib/search-client";
+import type { SearchHit, SearchMode, SortKey } from "@/lib/search-types";
+import { paramsToState, stateToParams } from "@/lib/table-url-state";
+import type { TableState } from "@/lib/table-url-state";
+import { ROUTES } from "@/lib/routes";
+
+const COLUMNS = [
+  { key: "headword", label: "Headword", sort: "headword" as SortKey },
+  { key: "pos", label: "POS", sort: null },
+  { key: "cefr", label: "CEFR", sort: null },
+  { key: "translations", label: "Polish", sort: null },
+  { key: "definition", label: "Definition", sort: null },
+  { key: "priority", label: "Priority", sort: "priority" as SortKey },
+  { key: "frequency", label: "Freq.", sort: "frequency" as SortKey },
+  { key: "score", label: "Score", sort: "relevance" as SortKey },
+] as const;
+
+/**
+ * Dense vocabulary workbench (sections 23/39): spreadsheet-style table
+ * over the Phase 14 search engine. Query/filters/sort/pagination live in
+ * the URL (shareable views); selection is client-side for future bulk
+ * actions (sets/assign arrive in later phases).
+ */
+export default function VocabularyPageWrapper() {
   return (
-    <PagePlaceholder
-      title="Vocabulary"
-      phase={16}
-      description="Dense, spreadsheet-style vocabulary browser with search and filters."
-    />
+    <Suspense fallback={<main className="mx-auto max-w-[110rem] px-4 py-8">Loading…</main>}>
+      <VocabularyPage />
+    </Suspense>
   );
+}
+
+function VocabularyPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const state = useMemo(() => paramsToState(new URLSearchParams(searchParams)), [searchParams]);
+
+  function updateState(next: Partial<TableState>, resetPage = true) {
+    const merged: TableState = { ...state, ...next, ...(resetPage ? { page: 0 } : {}) };
+    router.replace(`/vocabulary?${stateToParams(merged).toString()}`, { scroll: false });
+  }
+
+  const isRelevance = state.sort === "relevance";
+  const hasQuery = state.query.trim().length > 0;
+  const effectiveSort: SortKey = isRelevance && !hasQuery ? "priority" : state.sort;
+
+  const requestBody = useMemo(
+    () => ({
+      query: state.query,
+      mode: state.mode,
+      filters: state.filters,
+      sort: effectiveSort,
+      limit: state.pageSize,
+      offset: state.page * state.pageSize,
+    }),
+    [state, effectiveSort],
+  );
+
+  const results = useQuery({
+    queryKey: ["vocabulary", "table", requestBody],
+    queryFn: () => (hasQuery ? postSearch(requestBody) : browseVocabulary(requestBody)),
+    placeholderData: keepPreviousData,
+  });
+
+  const facets = useQuery({
+    queryKey: ["vocabulary", "facets"],
+    queryFn: fetchFilterFacets,
+    staleTime: 10 * 60_000,
+  });
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const hits: SearchHit[] = results.data?.hits ?? [];
+  const total = results.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / state.pageSize));
+
+  function toggleRow(senseId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(senseId)) next.delete(senseId);
+      else next.add(senseId);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected((prev) =>
+      prev.size > 0 ? new Set() : new Set(hits.map((h) => h.sense_id)),
+    );
+  }
+
+  const columns: LegacyColumnDef<SearchHit>[] = useMemo(
+    () =>
+      COLUMNS.map((col) => ({
+        id: col.key,
+        header: col.label,
+        cell: (info: { row: { original: SearchHit } }) =>
+          renderCell(col.key, info.row.original),
+      })),
+    [],
+  );
+
+  // Server-driven table: pagination/sorting happen in SQL (section 22);
+  // TanStack provides the headless row/header model only.
+  const table = useLegacyTable<SearchHit>({
+    data: hits,
+    columns,
+    getCoreRowModel: getCoreRowModel<SearchHit>(),
+    manualPagination: true,
+    manualSorting: true,
+    pageCount,
+  });
+
+  return (
+    <main className="mx-auto max-w-[110rem] px-4 py-2">
+      <SessionBar />
+      <h1 className="px-1 text-xl font-semibold">Vocabulary</h1>
+      <div className="mt-2 flex gap-4">
+        <FilterPanel
+          facets={facets.data}
+          filters={state.filters}
+          onChange={(filters) => updateState({ filters })}
+        />
+
+        <section className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              value={state.query}
+              onChange={(e) => updateState({ query: e.target.value })}
+              placeholder="Search headwords, translations, definitions…"
+              className="w-96 rounded border border-neutral-300 px-3 py-1.5"
+            />
+            <select
+              value={state.mode}
+              onChange={(e) => updateState({ mode: e.target.value as SearchMode })}
+              className="rounded border border-neutral-300 px-2 py-1.5"
+            >
+              <option value="lexical">Lexical</option>
+              <option value="semantic">Semantic</option>
+              <option value="hybrid">Hybrid</option>
+            </select>
+            <select
+              value={state.sort}
+              onChange={(e) => updateState({ sort: e.target.value as SortKey })}
+              className="rounded border border-neutral-300 px-2 py-1.5"
+            >
+              <option value="relevance">Sort: relevance</option>
+              <option value="headword">Sort: headword</option>
+              <option value="priority">Sort: priority</option>
+              <option value="frequency">Sort: frequency</option>
+            </select>
+            <span className="text-sm text-neutral-500">
+              {results.isFetching ? "…" : `${total.toLocaleString()} senses`}
+            </span>
+            {selected.size > 0 && (
+              <span className="rounded bg-neutral-900 px-2 py-1 text-xs text-white">
+                {selected.size} selected — sets/assignment arrive in Phase 18/19
+              </span>
+            )}
+          </div>
+
+          <table className="mt-2 w-full border-collapse text-sm">
+            <thead>
+              {table.getHeaderGroups().map((hg) => (
+                <tr key={hg.id} className="border-b border-neutral-300 text-left">
+                  <th className="w-8 py-1">
+                    <input
+                      type="checkbox"
+                      checked={hits.length > 0 && selected.size === hits.length}
+                      onChange={toggleAll}
+                      aria-label="Select page"
+                    />
+                  </th>
+                  {hg.headers.map((header) => {
+                    const col = COLUMNS.find((c) => c.key === header.column.id);
+                    const sortable = col?.sort !== null && col?.sort !== undefined;
+                    return (
+                      <th
+                        key={header.id}
+                        className={`py-1 pr-3 ${sortable ? "cursor-pointer select-none hover:text-neutral-900" : ""}`}
+                        onClick={
+                          sortable
+                            ? () => updateState({ sort: col.sort as SortKey })
+                            : undefined
+                        }
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {state.sort === col?.sort && " ▾"}
+                      </th>
+                    );
+                  })}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className={`cursor-pointer border-b border-neutral-100 hover:bg-neutral-50 ${
+                    selected.has(row.original.sense_id) ? "bg-neutral-100" : ""
+                  }`}
+                  onClick={() => router.push(ROUTES.vocabularySense(row.original.sense_id))}
+                >
+                  <td className="py-1" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.original.sense_id)}
+                      onChange={() => toggleRow(row.original.sense_id)}
+                      aria-label={`Select ${row.original.headword}`}
+                    />
+                  </td>
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="py-1 pr-3 align-top">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {hits.length === 0 && (
+                <tr>
+                  <td colSpan={COLUMNS.length + 1} className="py-8 text-center text-neutral-500">
+                    {results.isLoading ? "Loading…" : "No senses match the current search."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          <div className="mt-2 flex items-center justify-between text-sm">
+            <span className="text-neutral-500">
+              Page {state.page + 1} of {pageCount}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={state.page === 0}
+                onClick={() => updateState({ page: state.page - 1 }, false)}
+                className="rounded border border-neutral-300 px-2 py-1 disabled:opacity-40"
+              >
+                ← Prev
+              </button>
+              <button
+                type="button"
+                disabled={state.page + 1 >= pageCount}
+                onClick={() => updateState({ page: state.page + 1 }, false)}
+                className="rounded border border-neutral-300 px-2 py-1 disabled:opacity-40"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function renderCell(key: string, hit: SearchHit): ReactNode {
+  switch (key) {
+    case "headword":
+      return <span className="font-medium">{hit.headword || <em>(blank)</em>}</span>;
+    case "pos":
+      return hit.part_of_speech ?? "—";
+    case "cefr":
+      return hit.cefr_level ?? "—";
+    case "translations":
+      return hit.translations.slice(0, 3).join(", ") || "—";
+    case "definition":
+      return (
+        <span className="text-neutral-600">
+          {hit.definition_preview?.slice(0, 120) ?? "—"}
+        </span>
+      );
+    case "priority":
+      return hit.priority_level ?? "—";
+    case "frequency":
+      return hit.frequency_rank?.toLocaleString() ?? "—";
+    case "score":
+      return hit.score.toFixed(3);
+    default:
+      return null;
+  }
 }

@@ -28,8 +28,19 @@ flowchart LR
   implements the real UI.
 - `lib/api.ts`: typed fetch wrapper; every non-2xx becomes `ApiError`
   carrying the backend envelope (code, message, details, request_id).
-- Server state: TanStack Query from Phase 16. No Redux.
-- shadcn/ui component library introduced with the first real screens (Phase 16).
+- Server state: TanStack Query (Phase 16). No Redux.
+- Vocabulary workbench (Phase 16): dense TanStack Table over the search
+  API. TanStack Table v9 is used via its official `legacy` v8-compat
+  subpath (D018) with server-driven pagination/sorting (§22: filters and
+  ordering live in SQL, never client-side on a truncated list).
+- Table state (query/mode/sort/filters/page) is URL search params
+  (`lib/table-url-state.ts`, pure lossless mappings, unit-tested):
+  shareable bookmarkable views, back/forward restore.
+- `lib/search-types.ts` / `lib/search-client.ts`: typed models and
+  endpoint wrappers mirroring backend/app/api/v1/search.py and
+  vocabulary.py.
+- Styling is plain Tailwind CSS; no component library yet (shadcn/ui
+  deferred until a real screen set justifies the dependency).
 - Vitest for unit tests (`pnpm exec vitest run`).
 
 ## Backend Architecture (Phase 1: core foundation)
@@ -259,6 +270,19 @@ is no public registration. Login is enumeration-safe (uniform 401,
 decoy hash for unknown emails). `GET /auth/session` authenticates via
 the shared dependency that protected endpoints will reuse (§40).
 Students have no credentials.
+
+## Vocabulary read APIs (Phase 16)
+
+- `GET /api/v1/vocabulary` — filtered browse; a thin GET wrapper over
+  the same Phase 14 engine as `POST /vocabulary/search` (identical
+  coercion, filter composition, sorting, pagination; parity-tested,
+  D018). Source for the workbench table's query-less views.
+- `GET /api/v1/vocabulary/{sense_id}` — complete one-sense payload:
+  forms, definitions, Polish translations, examples, categories,
+  per-source frequency evidence and all priority versions; 404
+  envelope for unknown/invalid ids.
+- `GET /api/v1/vocabulary/search/filters` — facet enumeration that
+  drives the filter sidebar (unchanged since Phase 14).
 
 ## Security
 

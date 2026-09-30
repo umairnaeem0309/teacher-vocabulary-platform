@@ -369,9 +369,40 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 - [x] Docs: D017, current-state.md, architecture.md, .env.example
 - [x] Commit dated 2026-09-29 (+0500)
 
-## Phases 16–29 (queued; detailed tasks added as each starts)
-16. Vocabulary UI (dense spreadsheet table, TanStack Table, backed by the search API)
-16. Vocabulary UI (dense spreadsheet table, TanStack Table, backed by the search API)
+## Phase 16 (section 23/54: vocabulary UI + browse/detail API) — COMPLETE 2026-09-29
+
+- [x] GET /api/v1/vocabulary — filtered browse, a GET wrapper over the
+  Phase 14 engine (identical coercion/sort/pagination; parity-tested
+  against POST /vocabulary/search; D018)
+- [x] GET /api/v1/vocabulary/{sense_id} — full detail (forms,
+  definitions, translations, examples, categories, frequency evidence,
+  priority versions); 404 envelope for unknown/invalid ids
+- [x] TanStack Query + TanStack Table installed (pnpm; table via the
+  official `legacy` v8-compat subpath of v9 — D018)
+- [x] Vocabulary workbench page: dense 8-column table (headword, POS,
+  CEFR, Polish, definition, priority, frequency, score), search box,
+  mode selector, sortable headers, SQL-side pagination, row selection
+  (bulk actions land with phases 18/19)
+- [x] Filter sidebar driven by /search/facets (CEFR, POS, priority,
+  priority-min, category, frequency band, max rank, flags) — all
+  composed server-side per §22
+- [x] URL-driven state (q/mode/sort/filters/page): shareable views,
+  lossless round-trip, unit-tested (5 tests)
+- [x] Sense detail page (all relation lists + provenance) wired to the
+  new endpoint; login page real (POST /auth/login); session bar with
+  logout on workbench pages
+- [x] Live verification: CORS preflight + credentialed cookie flow from
+  :3000 → :8737, all pages 200, headless Chrome hydration of login and
+  workbench; semantic recall re-verified after final HNSW rebuild
+- [x] Embedding run COMPLETED this phase (batch 1303/1303, 41,690
+  embeddings, versions=1); --reindex executed over the full corpus
+  (262s); bank self-recall confirmed at 0.054s query time
+- [x] Gates: backend 292 passed, ruff/mypy clean; frontend tsc, eslint,
+  vitest 24/24, next build clean
+- [x] Docs: D018, current-state.md, architecture.md
+- [x] Commit dated 2026-09-29 (+0500)
+
+## Phases 17–29 (queued; detailed tasks added as each starts)
 17. Students (list/create/edit/deactivate/profile)
 18. Assignment (single/bulk/set/search-result; duplicate prevention; not-assigned filter)
 19. Vocabulary sets

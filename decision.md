@@ -931,3 +931,54 @@ temporary passwords to transmit.
 ## Status
 
 Accepted
+
+# Decision D018
+
+Date: 2026-09-29
+Phase: 16 (§23, §53, §54)
+
+## Context
+
+Phase 16 builds the vocabulary UI (dense spreadsheet table over the
+search API) and the remaining vocabulary endpoints. Two choices had to
+be made up front.
+
+## Decision
+
+1. **GET /vocabulary is a thin GET wrapper over the same engine** as
+   POST /vocabulary/search — identical coercion, filtering, sorting and
+   pagination semantics, verified by a parity test. One engine, no
+   drift; the UI can use GET for shareable URLs and POST for richer
+   payloads without behavioral surprises.
+2. **TanStack Table via the official `legacy` subpath.** pnpm resolved
+   @tanstack/react-table to v9 (2026), a ground-up redesign
+   (createTableHook/feature slots) with no v8-style `useReactTable`.
+   The table uses `@tanstack/react-table/legacy` — the package's own
+   v8-compat adapter — giving the stable documented API on the mandated
+   library. Migration to native v9 hooks is a contained, non-urgent
+   refactor.
+
+Also adopted: table state (query/mode/sort/filters/page) lives entirely
+in the URL search params (shareable bookmarkable views, back/forward
+restore), with lossless pure mappings unit-tested in
+`frontend/tests/table-url-state.test.ts`.
+
+## Reason
+
+The wrapper approach means Phase 14 semantics only ever need testing
+once. The legacy adapter avoids betting the core teacher workbench on a
+brand-new API version while keeping the dependency exactly as the
+master prompt mandates.
+
+## Alternatives considered
+
+- Adopting native v9 immediately (rejected this phase: brand-new API
+  surface; revisit in a later phase).
+- Pinning @tanstack/react-table@^8 (rejected: downgrading the mandated
+  current-stable version when an official compat layer exists).
+- Keeping table state in React only (rejected: §23 teacher workbench
+  benefits from shareable filtered views; URL state is testable).
+
+## Status
+
+Accepted

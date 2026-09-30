@@ -1,9 +1,21 @@
 # Current State
 
-Last updated: after Phase 15 (see plan.md for phase list)
+Last updated: after Phase 16 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 16 — Vocabulary UI (§23/§54): **COMPLETE**. Dense spreadsheet
+workbench on /vocabulary backed by the search engine: 8-column table,
+search box with mode selector, facet-driven filter sidebar (all
+server-side per §22), sortable headers, SQL pagination, row selection
+for future bulk actions. URL-driven state (shareable filtered views,
+unit-tested lossless round-trip). Sense detail page (all relations +
+provenance) on the new GET /vocabulary/{sense_id}; GET /vocabulary
+browse wrapper parity-tested with POST /vocabulary/search (D018).
+TanStack Query/Table installed; table uses the official v9 `legacy`
+subpath (D018). Login page + session bar live over Phase 15 auth.
+Verified live: CORS/credentialed cookie flow :3000→:8737, headless
+Chrome hydration of login + workbench.
 Phase 15 — Teacher authentication (§5/§39/§91): **COMPLETE**. Argon2id
 password hashing; server-side sessions (opaque token in an HTTP-only
 cookie, SHA-256 hash in PostgreSQL, 24h TTL, lazy prune, instant
@@ -21,14 +33,13 @@ benchmark captured in docs/search.md.
 Phase 13 — PostgreSQL vocabulary import (§89): COMPLETE. 41,687/41,690
 senses in PG (3 junk rows rejected and reported), re-import idempotent,
 priority history + denormalized current-priority columns populated.
-Phase 12 — Embeddings: code/tests/docs complete; full 41,690-sense
-generation RUNNING detached (relaunched 2026-09-28 after two external
-DB wipes, see D015; log data/construction/phase12_full.log, progress
-via emb-v1_checkpoint.json). ~24k embeddings stored at Phase 14 time;
-resumable (--full --resume), safe to interrupt; **HNSW index must be
-rebuilt after the bulk load completes (--reindex; D016)** — the
-incrementally-grown graph had near-zero recall, rebuild fixed it.
-Next: Phase 15 — Teacher authentication (Argon2id, server-side sessions)
+Phase 12 — Embeddings: **COMPLETE**. Full 41,690-sense generation
+finished 2026-09-29 (batch 1303/1303, log
+data/construction/phase12_full.log); HNSW index rebuilt over the
+complete corpus via --reindex (262s; D016 rule satisfied); semantic
+recall verified post-rebuild (bank top-5, 0.054s query). Resumable
+(--full --resume), safe to interrupt.
+Next: Phase 17 — Students (list/create/edit/deactivate/profile)
 
 ## Completed work
 Phase 13:
@@ -239,10 +250,12 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 284 passed (incl. 13 auth, 21 search, 17 import,
-  16 embeddings, 7 pgvector, sandboxed migration roundtrip; search
-  semantic tests skip cleanly if no embeddings exist yet)
-- Frontend vitest: 19 passed (route coverage 15, API client 4)
+- Backend pytest: 292 passed (incl. 13 auth, 21 search, 17 import,
+  8 vocabulary browse/detail, 16 embeddings, 7 pgvector, sandboxed
+  migration roundtrip; search semantic tests skip cleanly if no
+  embeddings exist yet)
+- Frontend vitest: 24 passed (route coverage 15, API client 4,
+  table URL state 5)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)
 - Live HTTP smoke: X-Request-ID on responses; 404/501 envelopes; access log

@@ -1,9 +1,18 @@
 # Current State
 
-Last updated: after Phase 16 (see plan.md for phase list)
+Last updated: after Phase 17 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 17 — Student management (§27/§39/§40): **COMPLETE**. All §27
+operations behind teacher-authenticated endpoints: create, edit (true
+PATCH semantics — absent fields preserved, sent nulls clear),
+deactivate/reactivate, soft delete (learning history preserved, §27
+hard rule), open profile, assigned-vocabulary view with learning state
+and FSRS due/reps. §40 isolation by WHERE-scoping: foreign student ids
+are 404, indistinguishable from unknown (D019). Frontend: students
+list with create + lifecycle buttons, profile page with edit,
+assigned-vocabulary table and confirm-step delete.
 Phase 16 — Vocabulary UI (§23/§54): **COMPLETE**. Dense spreadsheet
 workbench on /vocabulary backed by the search engine: 8-column table,
 search box with mode selector, facet-driven filter sidebar (all
@@ -250,10 +259,10 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 292 passed (incl. 13 auth, 21 search, 17 import,
-  8 vocabulary browse/detail, 16 embeddings, 7 pgvector, sandboxed
-  migration roundtrip; search semantic tests skip cleanly if no
-  embeddings exist yet)
+- Backend pytest: 297 passed (incl. 13 auth, 21 search, 17 import,
+  8 vocabulary browse/detail, 6 students, 16 embeddings, 7 pgvector,
+  sandboxed migration roundtrip; search semantic tests skip cleanly
+  if no embeddings exist yet)
 - Frontend vitest: 24 passed (route coverage 15, API client 4,
   table URL state 5)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,

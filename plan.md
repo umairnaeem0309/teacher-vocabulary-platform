@@ -402,8 +402,36 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 - [x] Docs: D018, current-state.md, architecture.md
 - [x] Commit dated 2026-09-29 (+0500)
 
-## Phases 17–29 (queued; detailed tasks added as each starts)
-17. Students (list/create/edit/deactivate/profile)
+## Phase 17 (section 27/39/40: student management) — COMPLETE 2026-09-29
+
+- [x] app/core/students.py: service layer (§27 logic out of handlers;
+  §40 isolation by WHERE-scoping teacher_id — foreign ids 404;
+  PATCH semantics via model_fields_set; per-teacher email uniqueness;
+  soft delete preserving all learning history — D019)
+- [x] Endpoints (all teacher-authenticated, replacing Phase 4 stubs):
+  GET /students (+include_inactive), POST /students,
+  GET/PATCH /students/{id}, PATCH /students/{id}/status
+  (deactivate/reactivate/delete), GET /students/{id}/vocabulary
+  (assigned senses + learning state + FSRS due/reps)
+- [x] Frontend: students list (create, show-deactivated toggle,
+  deactivate/reactivate), profile page (edit with PATCH semantics,
+  assigned-vocabulary table with due dates, delete with explicit
+  confirmation per §27), typed students-client.ts
+- [x] Tests (6): §27 lifecycle (create/edit/deactivate/reactivate/
+  soft-delete + row-survival proof), §40 auth on every endpoint,
+  §40 cross-teacher isolation (foreign id 404 on read/edit/status/
+  vocabulary/list), validation, empty + populated vocabulary views;
+  envelope stub test replaced (endpoint real now)
+- [x] Live verification 9/9: login → create → list → edit →
+  deactivate → reactivate → soft delete → 404 after delete → 401
+  unauthenticated; test rows cleaned up
+- [x] Gates: backend ruff/mypy clean, students+envelope 11 passed;
+  frontend tsc/eslint clean, vitest 24/24, next build clean
+- [x] Docs: D019, current-state.md, architecture.md
+- [x] Commit dated 2026-09-29 (+0500)
+
+## Phases 18–29 (queued; detailed tasks added as each starts)
+17. Students (list/create/edit/deactivate/profile) — COMPLETE above
 18. Assignment (single/bulk/set/search-result; duplicate prevention; not-assigned filter)
 19. Vocabulary sets
 20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures)

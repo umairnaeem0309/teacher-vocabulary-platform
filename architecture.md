@@ -271,6 +271,24 @@ decoy hash for unknown emails). `GET /auth/session` authenticates via
 the shared dependency that protected endpoints will reuse (§40).
 Students have no credentials.
 
+## Student management (Phase 17)
+
+- Service pattern: domain logic lives in `app/core/students.py`; route
+  handlers only authenticate, parse and open a transaction (enforced
+  shape for all later domains — D019).
+- §40 isolation by scoping: every student query filters
+  `teacher_id = session.teacher` in SQL; foreign ids return 404,
+  indistinguishable from unknown ids (no enumeration oracle).
+- Lifecycle is soft: `status` flips ACTIVE → INACTIVE → DELETED;
+  DELETED rows keep `student_vocabulary`, FSRS state and review
+  history (§27 forbids destroying learning records).
+- Endpoints (all teacher-authenticated): GET/POST `/students`,
+  GET/PATCH `/students/{id}`, PATCH `/students/{id}/status`,
+  GET `/students/{id}/vocabulary` (assigned senses + learning state
+  + FSRS due/repetitions).
+- PATCH semantics use Pydantic v2 `model_fields_set`: absent field =
+  keep, sent null = clear (D019).
+
 ## Vocabulary read APIs (Phase 16)
 
 - `GET /api/v1/vocabulary` — filtered browse; a thin GET wrapper over

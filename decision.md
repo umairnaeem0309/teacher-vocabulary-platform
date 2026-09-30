@@ -982,3 +982,55 @@ master prompt mandates.
 ## Status
 
 Accepted
+
+# Decision D019
+
+Date: 2026-09-29
+Phase: 17 (§27, §29, §40)
+
+## Context
+
+Phase 17 adds student management (§27) with §40 authorization on every
+endpoint. Three choices worth recording.
+
+## Decision
+
+1. **Service module pattern** (`app/core/students.py` holds all logic;
+   route handlers only wire auth, parsing and sessions) — §"no business
+   logic in route handlers" is enforced structurally; later domains
+   (assignments, sets, FSRS) follow the same shape.
+2. **Isolation by scoping, not by checking**: every student query
+   filters `teacher_id = session.teacher` in the WHERE clause, so a
+   foreign student id is indistinguishable from a nonexistent one (404
+   both). No id-enumeration oracle, no separate authorization step to
+   forget.
+3. **PATCH semantics via Pydantic v2 `model_fields_set`**: absent field
+   = keep current value; explicitly sent `null` = clear. A plain
+   `None`-default model cannot distinguish the two, which silently
+   deletes data on partial edits.
+
+Also: duplicate student emails are rejected **per teacher** (409), not
+globally — students belong to a teacher (§39 isolation); two teachers
+may each keep a student with the same address. Delete is soft (status
+DELETED) and leaves `student_vocabulary`/review history untouched (§27
+hard rule); the status endpoint refetches with deleted rows visible so
+confirming a deletion does not 404 on its own response.
+
+## Reason
+
+Each choice prevents a concrete failure class seen in similar systems:
+forgotten authorization checks, accidental data erasure on PATCH, and
+cross-tenant uniqueness surprises.
+
+## Alternatives considered
+
+- Auth-then-fetch-then-compare pattern for isolation (rejected: two
+  round trips and an easy-to-forget step; WHERE-scoping is atomic).
+- Global unique student emails (rejected: violates teacher isolation
+  semantics; students are per-teacher records).
+- Hard delete with CASCADE (rejected: §27 explicitly forbids destroying
+  historical learning records).
+
+## Status
+
+Accepted

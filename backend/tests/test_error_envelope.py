@@ -33,12 +33,9 @@ class TestNotImplementedStubs:
 
     # search: 501 stub until Phase 14, now covered by tests/test_search.py;
     # students: 501 stub until Phase 17, now covered by
-    # tests/test_students.py (both requires_db, like all PG-backed suites).
-
-    def test_assignments_bulk_stub_is_501(self, client: TestClient) -> None:
-        resp = client.post("/api/v1/assignments/bulk")
-        assert resp.status_code == 501
-        assert resp.json()["error"]["details"]["phase"] == 18
+    # tests/test_students.py; assignments: 501 stubs until Phase 18, now
+    # covered by tests/test_assignments.py (all requires_db, like every
+    # PG-backed suite).
 
 
 class TestHealthStillReal:

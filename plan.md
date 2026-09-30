@@ -430,9 +430,38 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 - [x] Docs: D019, current-state.md, architecture.md
 - [x] Commit dated 2026-09-29 (+0500)
 
-## Phases 18–29 (queued; detailed tasks added as each starts)
-17. Students (list/create/edit/deactivate/profile) — COMPLETE above
-18. Assignment (single/bulk/set/search-result; duplicate prevention; not-assigned filter)
+## Phase 18 (sections 28–31: assignment, duplicates, not-assigned) — COMPLETE 2026-09-30
+
+- [x] app/core/assignments.py: single/bulk assignment (one endpoint,
+  1..1000 senses) with §29 layered duplicate prevention — application
+  pre-check + UNIQUE(student_id, sense_id) backstop (row-count proven);
+  §29 report (selected/new/already_assigned/failed); reactivation of
+  inactive records; per-item failures, never wholesale 409 (D020)
+- [x] Endpoints (teacher-authenticated, replacing stubs): POST
+  /assignments, GET/PATCH /assignments/{assignment_id} — §31 explicit
+  teacher overrides (learning_state, teacher_priority_override,
+  is_active) with model_fields_set PATCH semantics; student-scoped 404s
+- [x] §30 not-assigned: engine predicates (Phase 14) now exposed on the
+  GET browse wrapper (student_id/assigned params) and driven from the
+  workbench filter sidebar (student picker + assigned/not-assigned)
+- [x] Frontend: assign-to-student action on workbench selection with
+  the §29 result note; typed assignments-client
+- [x] Tests (7): single assign + §30 both directions, §29 duplicate
+  bulk with row-count backstop proof, unknown-sense failure report,
+  unknown/cross-teacher student 404s, §31 overrides + clearing,
+  validation 422s
+- [x] Live verification: bulk 2 → selected 2/new 2; re-assign →
+  already 2; assigned=true → 2; assigned=false → 41,688 with zero
+  overlap; test student cleaned up
+- [x] Gates: backend ruff/mypy clean, 303 passed; frontend tsc/eslint
+  clean, vitest 24/24, next build clean
+- [x] Docs: D020, current-state.md, architecture.md
+- [x] Commit dated 2026-09-30 (+0500), no AI attribution (per D021
+  policy — see commit-history note in current-state.md)
+
+## Phases 19–29 (queued; detailed tasks added as each starts)
+19. Vocabulary sets
+20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures)
 19. Vocabulary sets
 20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures)
 21. Review interface (one-at-a-time, keyboard shortcuts, duplicate-submission guard)

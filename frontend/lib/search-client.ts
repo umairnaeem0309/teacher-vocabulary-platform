@@ -41,6 +41,8 @@ export function browseVocabulary(params: SearchRequestBody): Promise<SearchResul
     qs.set("max_frequency_rank", String(f.max_frequency_rank));
   }
   if (f.flags.length) qs.set("flags", f.flags.join(","));
+  if (f.student_id) qs.set("student_id", f.student_id);
+  if (f.assigned !== null) qs.set("assigned", f.assigned ? "true" : "false");
   return apiFetch<SearchResultBody>(`/api/v1/vocabulary?${qs.toString()}`);
 }
 

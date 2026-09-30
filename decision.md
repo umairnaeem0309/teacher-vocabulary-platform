@@ -1034,3 +1034,49 @@ cross-tenant uniqueness surprises.
 ## Status
 
 Accepted
+
+# Decision D020
+
+Date: 2026-09-30
+Phase: 18 (§28, §29, §30, §31)
+
+## Context
+
+Phase 18 adds assignment (single/bulk), duplicate prevention and the
+§30 not-assigned workflow. Choices worth recording:
+
+## Decision
+
+1. **One endpoint for single and bulk**: POST /assignments takes 1..1000
+   sense ids. §29's report shape (selected/new/already_assigned/failed)
+   degenerates cleanly to the single case; no parallel code paths.
+2. **Upsert-style bulk with explicit reporting**: already-assigned
+   senses are *skipped and reported*, never overwritten (their learning
+   state/history is precious); inactive records are reactivated (with
+   their state reset per request) instead of duplicated. Application
+   pre-check first, UNIQUE(student_id, sense_id) as the mandatory DB
+   backstop — proven by a test that counts rows after a duplicate-heavy
+   bulk (20 selected incl. 2 dups → exactly 20 rows).
+3. **Unknown senses are reported, not fatal**: a bulk of 20 with one
+   bad id assigns 19 and returns the failure list — partial success
+   matches §29's accounting semantics.
+4. **Teacher overrides are literal** (§31): PATCH applies exactly the
+   fields sent (model_fields_set, per D019); nothing is inferred from
+   labels; clearing an override is an explicit null.
+5. **§30 lives in SQL** (already true since Phase 14): assigned true/
+   false filters are anti-join predicates over student_vocabulary; the
+   Phase 16 GET browse wrapper now exposes student_id/assigned so the
+   workbench filter sidebar drives it without POST.
+
+## Alternatives considered
+
+- Separate single-assignment endpoint (rejected: duplication with no
+  benefit; the report degenerates naturally).
+- Overwrite-on-conflict upsert (rejected: destroys learning history —
+  §29 says report, not replace).
+- 409 on any duplicate in a bulk (rejected: would make 20-sense
+  selections fail wholesale; §29 explicitly wants per-item accounting).
+
+## Status
+
+Accepted

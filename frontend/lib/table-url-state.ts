@@ -42,6 +42,8 @@ export function stateToParams(state: TableState): URLSearchParams {
   if (f.priority_min) p.set("pmin", f.priority_min);
   if (f.category_key) p.set("cat", f.category_key);
   if (f.max_frequency_rank !== null) p.set("maxrank", String(f.max_frequency_rank));
+  if (f.student_id) p.set("student", f.student_id);
+  if (f.assigned !== null) p.set("assigned", f.assigned ? "yes" : "no");
   if (state.page !== 0) p.set("page", String(state.page));
   if (state.pageSize !== DEFAULT_PAGE_SIZE) p.set("size", String(state.pageSize));
   return p;
@@ -58,6 +60,8 @@ export function paramsToState(params: URLSearchParams): TableState {
     priority_min: params.get("pmin"),
     category_key: params.get("cat"),
     max_frequency_rank: parseNullableInt(params.get("maxrank")),
+    student_id: params.get("student"),
+    assigned: parseAssigned(params.get("assigned")),
   };
   const rawPage = parseNonNegativeInt(params.get("page"));
   return {
@@ -86,6 +90,12 @@ function parseNonNegativeInt(value: string | null): number | null {
 
 function parseNullableInt(value: string | null): number | null {
   return parseNonNegativeInt(value);
+}
+
+function parseAssigned(value: string | null): boolean | null {
+  if (value === "yes") return true;
+  if (value === "no") return false;
+  return null;
 }
 
 function parseMode(value: string | null): SearchMode {

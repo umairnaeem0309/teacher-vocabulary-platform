@@ -289,6 +289,24 @@ Students have no credentials.
 - PATCH semantics use Pydantic v2 `model_fields_set`: absent field =
   keep, sent null = clear (D019).
 
+## Assignment (Phase 18)
+
+- One endpoint for single and bulk: `POST /assignments` takes 1..1000
+  sense ids for one student and returns the §29 report
+  (selected / new / already_assigned / failed); unknown senses are
+  reported per-item, never a wholesale failure (D020).
+- Duplicate prevention is layered (§29): the service pre-checks
+  existing assignments, reactivates inactive records instead of
+  duplicating, and the DB `UNIQUE(student_id, sense_id)` constraint is
+  the mandatory backstop (row-count-tested).
+- `PATCH /assignments/{assignment_id}` applies explicit §31 teacher
+  overrides only to fields actually sent (learning_state,
+  per-student teacher_priority_override, is_active); assignments are
+  scoped through the owning student (§40 404s).
+- §30 not-assigned workflow: `assigned`/`student_id` predicates live in
+  the search engine (anti-join over student_vocabulary) and are exposed
+  on both POST /vocabulary/search and the GET browse wrapper.
+
 ## Vocabulary read APIs (Phase 16)
 
 - `GET /api/v1/vocabulary` — filtered browse; a thin GET wrapper over

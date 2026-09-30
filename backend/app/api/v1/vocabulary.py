@@ -42,8 +42,16 @@ def browse_vocabulary(
     frequency_bands: str = Query("", description="comma-separated bands"),
     max_frequency_rank: int | None = Query(None),
     flags: str = Query("", description="comma-separated flags"),
+    student_id: str | None = Query(None, description="§30 assignment viewpoint"),
+    assigned: bool | None = Query(None, description="§30: true/false"),
 ) -> dict[str, Any]:
     """Browse/filter vocabulary (section 23: dense table data source)."""
+    try:
+        sid: uuid.UUID | None = (
+            uuid.UUID(student_id) if student_id else None
+        )
+    except ValueError as exc:
+        raise NotFoundError("No such student.") from exc
     filters = SearchFilters(
         cefr=_csv(cefr),
         pos=_csv(pos),
@@ -53,6 +61,8 @@ def browse_vocabulary(
         frequency_bands=_csv(frequency_bands),
         max_frequency_rank=max_frequency_rank,
         flags=_csv(flags),
+        student_id=sid,
+        assigned=assigned,
     )
     req = SearchRequest(
         query=query,

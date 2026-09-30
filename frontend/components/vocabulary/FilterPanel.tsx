@@ -1,6 +1,9 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+
 import type { FilterFacets, SearchFilters } from "@/lib/search-types";
+import { listStudents } from "@/lib/students-client";
 
 interface FilterPanelProps {
   facets: FilterFacets | undefined;
@@ -14,6 +17,13 @@ interface FilterPanelProps {
  * owns the request. Groups are collapsible to keep the workbench dense.
  */
 export function FilterPanel({ facets, filters, onChange }: FilterPanelProps) {
+  // §30: the assignment viewpoint needs the teacher's student list.
+  const students = useQuery({
+    queryKey: ["students", "list", false],
+    queryFn: () => listStudents(false),
+    staleTime: 5 * 60_000,
+  });
+
   function toggle(list: string[], value: string): string[] {
     return list.includes(value)
       ? list.filter((v) => v !== value)
@@ -70,6 +80,57 @@ export function FilterPanel({ facets, filters, onChange }: FilterPanelProps) {
         "frequency_bands",
       )}
       {CheckGroup("Flags", facets?.flags, filters.flags, "flags")}
+
+      <details className="border-b border-neutral-200 pb-2" open={filters.student_id !== null}>
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          Student assignment (§30)
+        </summary>
+        <select
+          className="mt-2 w-full rounded border border-neutral-300 px-2 py-1"
+          value={filters.student_id ?? ""}
+          onChange={(e) =>
+            set("student_id", e.target.value || null)
+          }
+        >
+          <option value="">— any student —</option>
+          {(students.data?.students ?? []).map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.display_name}
+            </option>
+          ))}
+        </select>
+        <div className="mt-1 flex gap-3 text-sm">
+          <label className="flex items-center gap-1">
+            <input
+              type="radio"
+              name="assigned"
+              checked={filters.assigned === null}
+              onChange={() => set("assigned", null)}
+            />
+            all
+          </label>
+          <label className="flex items-center gap-1">
+            <input
+              type="radio"
+              name="assigned"
+              checked={filters.assigned === true}
+              onChange={() => set("assigned", true)}
+              disabled={filters.student_id === null}
+            />
+            assigned
+          </label>
+          <label className="flex items-center gap-1">
+            <input
+              type="radio"
+              name="assigned"
+              checked={filters.assigned === false}
+              onChange={() => set("assigned", false)}
+              disabled={filters.student_id === null}
+            />
+            not assigned
+          </label>
+        </div>
+      </details>
 
       <details className="border-b border-neutral-200 pb-2">
         <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-neutral-500">
@@ -139,6 +200,8 @@ export function FilterPanel({ facets, filters, onChange }: FilterPanelProps) {
             frequency_bands: [],
             max_frequency_rank: null,
             flags: [],
+            student_id: null,
+            assigned: null,
           })
         }
       >

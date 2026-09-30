@@ -26,6 +26,8 @@ describe("stateToParams / paramsToState", () => {
         frequency_bands: ["top1000"],
         max_frequency_rank: 3000,
         flags: ["rare", "british"],
+        student_id: "7a0e9a10-0000-4000-8000-000000000001",
+        assigned: false,
       },
       page: 3,
       pageSize: 100,

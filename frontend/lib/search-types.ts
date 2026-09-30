@@ -17,6 +17,10 @@ export interface SearchFilters {
   frequency_bands: string[];
   max_frequency_rank: number | null;
   flags: string[];
+  /** §22/§30: restrict to one student's assignment viewpoint. */
+  student_id: string | null;
+  /** true = assigned to that student, false = not assigned (§30). */
+  assigned: boolean | null;
 }
 
 export const EMPTY_FILTERS: SearchFilters = {
@@ -28,6 +32,8 @@ export const EMPTY_FILTERS: SearchFilters = {
   frequency_bands: [],
   max_frequency_rank: null,
   flags: [],
+  student_id: null,
+  assigned: null,
 };
 
 export interface SearchHit {

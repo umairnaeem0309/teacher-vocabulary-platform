@@ -1,9 +1,20 @@
 # Current State
 
-Last updated: after Phase 17 (see plan.md for phase list)
+Last updated: after Phase 18 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 18 — Assignment (§28–§31): **COMPLETE**. Single/bulk assignment
+via POST /assignments (one endpoint, 1..1000 senses) with §29 layered
+duplicate prevention (application pre-check + UNIQUE backstop, proven
+by row-count test) and the §29 report (selected/new/already_assigned/
+failed); unknown senses reported per-item, never wholesale failure.
+PATCH /assignments/{id} applies explicit §31 teacher overrides
+(learning_state, per-student priority, active flag). §30 not-assigned
+workflow driven from the workbench filter sidebar (student picker +
+assigned/not-assigned radios) through the GET browse wrapper.
+Commit policy note: AI co-author trailers removed from history
+(2026-09-30, content verified identical); commits are now clean.
 Phase 17 — Student management (§27/§39/§40): **COMPLETE**. All §27
 operations behind teacher-authenticated endpoints: create, edit (true
 PATCH semantics — absent fields preserved, sent nulls clear),
@@ -259,10 +270,9 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 297 passed (incl. 13 auth, 21 search, 17 import,
-  8 vocabulary browse/detail, 6 students, 16 embeddings, 7 pgvector,
-  sandboxed migration roundtrip; search semantic tests skip cleanly
-  if no embeddings exist yet)
+- Backend pytest: 303 passed (incl. 13 auth, 21 search, 17 import,
+  8 vocabulary browse/detail, 6 students, 7 assignments, 16
+  embeddings, 7 pgvector, sandboxed migration roundtrip)
 - Frontend vitest: 24 passed (route coverage 15, API client 4,
   table URL state 5)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,

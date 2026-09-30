@@ -10,9 +10,13 @@ import { flexRender } from "@tanstack/react-table";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useMutation } from "@tanstack/react-query";
 
 import { FilterPanel } from "@/components/vocabulary/FilterPanel";
 import { SessionBar } from "@/components/SessionBar";
+import { ApiError } from "@/lib/api";
+import { assignSenses } from "@/lib/assignments-client";
+import { listStudents } from "@/lib/students-client";
 import { browseVocabulary, fetchFilterFacets, postSearch } from "@/lib/search-client";
 import type { SearchHit, SearchMode, SortKey } from "@/lib/search-types";
 import { paramsToState, stateToParams } from "@/lib/table-url-state";
@@ -83,6 +87,30 @@ function VocabularyPage() {
   });
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [assignTo, setAssignTo] = useState("");
+  const [assignNote, setAssignNote] = useState<string | null>(null);
+  const students = useQuery({
+    queryKey: ["students", "list", false],
+    queryFn: () => listStudents(false),
+    staleTime: 5 * 60_000,
+  });
+  const assign = useMutation({
+    mutationFn: () =>
+      assignSenses({ student_id: assignTo, sense_ids: [...selected] }),
+    onSuccess: (report) => {
+      setAssignNote(
+        `${report.new} assigned, ${report.already_assigned} already had them${
+          report.failed.length ? `, ${report.failed.length} failed` : ""
+        }.`,
+      );
+      setSelected(new Set());
+      void results.refetch();
+    },
+    onError: (err) =>
+      setAssignNote(
+        err instanceof ApiError ? err.message : "Assignment failed.",
+      ),
+  });
   const hits: SearchHit[] = results.data?.hits ?? [];
   const total = results.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / state.pageSize));
@@ -167,9 +195,32 @@ function VocabularyPage() {
               {results.isFetching ? "…" : `${total.toLocaleString()} senses`}
             </span>
             {selected.size > 0 && (
-              <span className="rounded bg-neutral-900 px-2 py-1 text-xs text-white">
-                {selected.size} selected — sets/assignment arrive in Phase 18/19
+              <span className="flex items-center gap-2 rounded bg-neutral-900 px-2 py-1 text-xs text-white">
+                {selected.size} selected
+                <select
+                  value={assignTo}
+                  onChange={(e) => setAssignTo(e.target.value)}
+                  className="rounded bg-neutral-800 px-1 py-0.5 text-white"
+                >
+                  <option value="">assign to…</option>
+                  {(students.data?.students ?? []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.display_name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!assignTo || assign.isPending}
+                  onClick={() => assign.mutate()}
+                  className="rounded bg-white px-2 py-0.5 text-xs font-medium text-neutral-900 disabled:opacity-40"
+                >
+                  {assign.isPending ? "Assigning…" : "Assign"}
+                </button>
               </span>
+            )}
+            {assignNote && (
+              <span className="text-xs text-neutral-600">{assignNote}</span>
             )}
           </div>
 

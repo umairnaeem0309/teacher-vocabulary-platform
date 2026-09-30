@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   getCoreRowModel,
   useLegacyTable,
@@ -16,6 +16,7 @@ import { FilterPanel } from "@/components/vocabulary/FilterPanel";
 import { SessionBar } from "@/components/SessionBar";
 import { ApiError } from "@/lib/api";
 import { assignSenses } from "@/lib/assignments-client";
+import { addSetItems, createSet, listSets } from "@/lib/sets-client";
 import { listStudents } from "@/lib/students-client";
 import { browseVocabulary, fetchFilterFacets, postSearch } from "@/lib/search-client";
 import type { SearchHit, SearchMode, SortKey } from "@/lib/search-types";
@@ -49,6 +50,7 @@ export default function VocabularyPageWrapper() {
 }
 
 function VocabularyPage() {
+  const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   const state = useMemo(() => paramsToState(new URLSearchParams(searchParams)), [searchParams]);
@@ -111,6 +113,35 @@ function VocabularyPage() {
         err instanceof ApiError ? err.message : "Assignment failed.",
       ),
   });
+  const allSets = useQuery({
+    queryKey: ["sets", "list"],
+    queryFn: listSets,
+    staleTime: 5 * 60_000,
+  });
+  const [setMode, setSetMode] = useState(""); // "" | existing set id | "__new__"
+  const [newSetName, setNewSetName] = useState("");
+  const addToSet = useMutation({
+    mutationFn: async () => {
+      if (setMode === "__new__") {
+        const created = await createSet({ name: newSetName });
+        return addSetItems(created.id, [...selected]);
+      }
+      return addSetItems(setMode, [...selected]);
+    },
+    onSuccess: (report) => {
+      setAssignNote(
+        `${report.new} added to the set, ${report.already_in_set} were already in it.`,
+      );
+      setSelected(new Set());
+      setSetMode("");
+      setNewSetName("");
+      queryClient.invalidateQueries({ queryKey: ["sets"] });
+    },
+    onError: (err) =>
+      setAssignNote(
+        err instanceof ApiError ? err.message : "Could not add to the set.",
+      ),
+    });
   const hits: SearchHit[] = results.data?.hits ?? [];
   const total = results.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / state.pageSize));
@@ -216,6 +247,40 @@ function VocabularyPage() {
                   className="rounded bg-white px-2 py-0.5 text-xs font-medium text-neutral-900 disabled:opacity-40"
                 >
                   {assign.isPending ? "Assigning…" : "Assign"}
+                </button>
+                <select
+                  value={setMode}
+                  onChange={(e) => setSetMode(e.target.value)}
+                  className="rounded bg-neutral-800 px-1 py-0.5 text-white"
+                >
+                  <option value="">add to set…</option>
+                  {(allSets.data?.sets ?? []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                  <option value="__new__">＋ new set…</option>
+                </select>
+                {setMode === "__new__" && (
+                  <input
+                    value={newSetName}
+                    onChange={(e) => setNewSetName(e.target.value)}
+                    placeholder="new set name"
+                    maxLength={200}
+                    className="w-32 rounded bg-neutral-800 px-1 py-0.5 text-white placeholder-neutral-400"
+                  />
+                )}
+                <button
+                  type="button"
+                  disabled={
+                    !setMode ||
+                    addToSet.isPending ||
+                    (setMode === "__new__" && !newSetName.trim())
+                  }
+                  onClick={() => addToSet.mutate()}
+                  className="rounded bg-white px-2 py-0.5 text-xs font-medium text-neutral-900 disabled:opacity-40"
+                >
+                  {addToSet.isPending ? "Adding…" : "Add"}
                 </button>
               </span>
             )}

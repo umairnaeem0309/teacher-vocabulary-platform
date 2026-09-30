@@ -459,8 +459,32 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 - [x] Commit dated 2026-09-30 (+0500), no AI attribution (per D021
   policy — see commit-history note in current-state.md)
 
-## Phases 19–29 (queued; detailed tasks added as each starts)
-19. Vocabulary sets
+## Phase 19 (section 26: vocabulary sets) — COMPLETE 2026-09-30
+
+- [x] app/core/sets.py: sets as pure references to master senses
+  ((set_id, sense_id) PK — no vocabulary duplication, §26; D021);
+  membership edits report selected/new/already_in_set/failed (§29
+  shape); assign-set composes the Phase 18 assignment service
+- [x] Endpoints (teacher-authenticated, replacing stubs): GET/POST
+  /sets, GET/PATCH/DELETE /sets/{id}, POST/DELETE /sets/{id}/items,
+  POST /sets/{id}/assign; per-teacher name uniqueness (409)
+- [x] Frontend: sets list (create, delete with confirm), set detail
+  (rename, assign-to-student with report note, remove items), and
+  workbench selection → add-to-existing-set or create-new-set inline
+- [x] Tests (5): lifecycle (create/rename/delete, 409, 404, 422),
+  membership (add/re-add report, removal, corpus-untouched assertion),
+  assign-set (new 3 → re-assign already 3 → visible in profile),
+  cross-teacher 404s, per-teacher duplicate names allowed
+- [x] Live verification 7/7: create → add 3 (new 3) → re-add
+  (already 3) → detail items 3 → duplicate name 409 → delete 200 →
+  404 after delete
+- [x] Gates: backend ruff/mypy clean, 308 passed; frontend tsc/eslint
+  clean, vitest 24/24, next build clean
+- [x] Docs: D021, current-state.md, architecture.md
+- [x] Commit dated 2026-09-30 (+0500), no AI attribution
+
+## Phases 20–29 (queued; detailed tasks added as each starts)
+19. Vocabulary sets — COMPLETE above
 20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures)
 19. Vocabulary sets
 20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures)

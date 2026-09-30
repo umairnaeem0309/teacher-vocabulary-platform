@@ -1080,3 +1080,48 @@ Phase 18 adds assignment (single/bulk), duplicate prevention and the
 ## Status
 
 Accepted
+
+# Decision D021
+
+Date: 2026-09-30
+Phase: 19 (§26)
+
+## Context
+
+Phase 19 adds vocabulary sets: named collections of references to
+existing master senses (§26 — sets never duplicate vocabulary).
+
+## Decision
+
+1. **Sets are references, always**: membership lives in
+   vocabulary_set_items with (set_id, sense_id) as the primary key —
+   no copying of sense data, so master vocabulary is structurally
+   immune to duplication (a test asserts the senses table is untouched
+   by membership changes).
+2. **Membership edits reuse the §29 accounting shape** (selected /
+   new / already_in_set / failed): consistent with assignments, so the
+   frontend renders both bulk flows with one interaction pattern and
+   duplicates are skipped-and-reported, never errors.
+3. **Set assignment composes the assignment service**: POST
+   /sets/{id}/assign resolves the set's senses and calls the same
+   assign_senses code path as Phase 18 — one duplicate-prevention
+   implementation, not two.
+4. **Per-teacher name uniqueness** (uq_set_name_per_teacher, already in
+   the schema): two teachers may each have "Travel Vocabulary"; a
+   duplicate within one teacher is a 409 conflict.
+5. **Delete removes the collection and memberships only** (CASCADE);
+   master senses and student learning records are untouched — the
+   UI asks for confirmation because the set itself is not recoverable.
+
+## Alternatives considered
+
+- Copying sense data into sets (rejected: violates §26's core rule and
+  forks the data).
+- Global unique set names (rejected: names are teacher workspace
+  labels, not global identities).
+- A separate bulk-assign implementation for sets (rejected: composition
+  keeps duplicate semantics identical and tested once).
+
+## Status
+
+Accepted

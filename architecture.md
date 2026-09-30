@@ -307,6 +307,19 @@ Students have no credentials.
   the search engine (anti-join over student_vocabulary) and are exposed
   on both POST /vocabulary/search and the GET browse wrapper.
 
+## Vocabulary sets (Phase 19)
+
+- Sets are references only: `vocabulary_set_items` has
+  (set_id, sense_id) as its primary key; no sense data is copied (§26
+  "does NOT create duplicate vocabulary" — D021).
+- Endpoints (teacher-authenticated, WHERE-scoped per §40): GET/POST
+  `/sets`, GET/PATCH/DELETE `/sets/{id}`, POST/DELETE `/sets/{id}/items`,
+  POST `/sets/{id}/assign`. Per-teacher name uniqueness (409).
+- Membership edits use the §29 accounting shape (selected / new /
+  already_in_set / failed); the (set_id, sense_id) PK is the backstop.
+- Assign-set composes the Phase 18 assignment service — one duplicate-
+  prevention implementation for both flows.
+
 ## Vocabulary read APIs (Phase 16)
 
 - `GET /api/v1/vocabulary` — filtered browse; a thin GET wrapper over

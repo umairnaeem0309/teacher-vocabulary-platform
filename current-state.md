@@ -1,9 +1,17 @@
 # Current State
 
-Last updated: after Phase 18 (see plan.md for phase list)
+Last updated: after Phase 19 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 19 — Vocabulary sets (§26): **COMPLETE**. Sets are pure
+references to master senses ((set_id, sense_id) PK — structurally
+immune to vocabulary duplication, D021). CRUD + membership with the
+§29 accounting shape (selected/new/already_in_set/failed), assign-set
+composing the Phase 18 assignment service, per-teacher name
+uniqueness (409). Frontend: sets list with confirm-delete, set detail
+(rename, assign-to-student, remove items), and workbench selection →
+add-to-set or create-new-set inline. Live flow verified 7/7.
 Phase 18 — Assignment (§28–§31): **COMPLETE**. Single/bulk assignment
 via POST /assignments (one endpoint, 1..1000 senses) with §29 layered
 duplicate prevention (application pre-check + UNIQUE backstop, proven
@@ -270,9 +278,9 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 303 passed (incl. 13 auth, 21 search, 17 import,
-  8 vocabulary browse/detail, 6 students, 7 assignments, 16
-  embeddings, 7 pgvector, sandboxed migration roundtrip)
+- Backend pytest: 308 passed (incl. 13 auth, 21 search, 17 import,
+  8 vocabulary browse/detail, 6 students, 7 assignments, 5 sets,
+  16 embeddings, 7 pgvector, sandboxed migration roundtrip)
 - Frontend vitest: 24 passed (route coverage 15, API client 4,
   table URL state 5)
 - Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,

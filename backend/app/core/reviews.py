@@ -94,9 +94,7 @@ def review_assignment(
     """
     rating_u = (rating or "").strip().upper()
     if rating_u not in TEACHER_TO_FSRS:
-        raise ValidationError(
-            "Rating must be one of HARD, MEDIUM, EASY."
-        )
+        raise ValidationError("Rating must be one of HARD, MEDIUM, EASY.")
     fsrs_rating = TEACHER_TO_FSRS[rating_u]
     sid = str(_get_scoped(conn, teacher_id, student_id)["id"])
     try:
@@ -131,26 +129,28 @@ def review_assignment(
     previous_card = _load_card(row["state_json"])
 
     card = previous_card or Card()
-    new_card, _log = SCHEDULER.review_card(
-        card, fsrs_rating, review_datetime=when
-    )
+    new_card, _log = SCHEDULER.review_card(card, fsrs_rating, review_datetime=when)
     new_state_json = new_card.to_json()
 
     # py-fsrs 6 cards do not carry repetition counters; derive them from
     # the immutable review history (§33): reps = events, lapses = Again
     # ratings that hit a card in the Review state (a true lapse).
     # fsrs_grade is a varchar enum: values are stored as names (AGAIN...).
-    prior = conn.execute(
-        text(
-            "SELECT count(*) AS reps, "
-            "count(*) FILTER (WHERE fsrs_grade = 'AGAIN' AND previous_state_json "
-            "  IS NOT NULL "
-            "  AND (previous_state_json::jsonb->>'state')::int = 2) "
-            "  AS lapses "
-            "FROM review_events WHERE student_vocabulary_id = CAST(:sv AS uuid)"
-        ),
-        {"sv": aid},
-    ).mappings().first()
+    prior = (
+        conn.execute(
+            text(
+                "SELECT count(*) AS reps, "
+                "count(*) FILTER (WHERE fsrs_grade = 'AGAIN' AND previous_state_json "
+                "  IS NOT NULL "
+                "  AND (previous_state_json::jsonb->>'state')::int = 2) "
+                "  AS lapses "
+                "FROM review_events WHERE student_vocabulary_id = CAST(:sv AS uuid)"
+            ),
+            {"sv": aid},
+        )
+        .mappings()
+        .first()
+    )
     reps = (prior["reps"] or 0) + 1
     was_lapse = (
         fsrs_rating == Rating.Again
@@ -258,45 +258,7 @@ def due_queue(
     sees the most-urgent cards first; deterministic within ties.
     """
     sid = str(_get_scoped(conn, teacher_id, student_id)["id"])
-    # include_new adds never-reviewed rows to the queue; the OR lives
-    # INSIDE the parenthesized due-condition (an outside OR would match
-    # every unreviewed row in the database).
-    new_branch = (
-        " OR fs.student_vocabulary_id IS NULL" if include_new else ""
-    )
-    rows = conn.execute(
-        text(
-            "SELECT sv.id AS assignment_id, sv.learning_state, "
-            "fs.due_at, fs.repetitions, fs.lapses, fs.last_review_at, "
-            "vs.id AS sense_id, vs.headword, vs.part_of_speech, vs.cefr_level, "
-            "vs.definition_preview, "
-            "(SELECT st.translation FROM sense_translations st "
-            " WHERE st.sense_id = vs.id ORDER BY st.position LIMIT 1) "
-            "AS translation_pl, "
-            "(SELECT se.example FROM sense_examples se "
-            " WHERE se.sense_id = vs.id ORDER BY se.position LIMIT 1) "
-            "AS example, "
-            "CASE "
-            " WHEN fs.student_vocabulary_id IS NULL THEN 2 "  # new last
-            " WHEN fs.due_at < now() THEN 0 "  # overdue first
-            " ELSE 1 "
-            "END AS bucket, "
-            "CASE WHEN fs.student_vocabulary_id IS NULL THEN NULL "
-            " ELSE fs.due_at < now() END AS is_overdue "
-            "FROM student_vocabulary sv "
-            "JOIN vocabulary_senses vs ON vs.id = sv.sense_id "
-            "LEFT JOIN student_fsrs_states fs "
-            " ON fs.student_vocabulary_id = sv.id "
-            "WHERE sv.student_id = CAST(:sid AS uuid) AND sv.is_active "
-            "AND (fs.student_vocabulary_id IS NULL"
-            + new_branch
-            + " OR fs.due_at <= date_trunc('day', now()) "
-            "        + interval '1 day' - interval '1 microsecond')"
-            + " ORDER BY bucket, fs.due_at NULLS LAST, vs.headword, sv.id "
-            "LIMIT :lim"
-        ),
-        {"sid": sid, "lim": limit},
-    ).mappings().all()
+    rows = _due_rows(conn, sid, limit=limit, include_new=include_new)
     items = [
         {
             "assignment_id": str(r["assignment_id"]),
@@ -305,9 +267,7 @@ def due_queue(
             "due_at": r["due_at"].isoformat() if r["due_at"] else None,
             "repetitions": r["repetitions"],
             "lapses": r["lapses"],
-            "last_review_at": r["last_review_at"].isoformat()
-            if r["last_review_at"]
-            else None,
+            "last_review_at": r["last_review_at"].isoformat() if r["last_review_at"] else None,
             "sense": {
                 "id": str(r["sense_id"]),
                 "headword": r["headword"],
@@ -321,3 +281,55 @@ def due_queue(
         for r in rows
     ]
     return {"items": items, "total": len(items)}
+
+
+def _due_rows(
+    conn: Any,
+    sid: str,
+    *,
+    limit: int = 50,
+    include_new: bool = True,
+) -> Any:
+    """Bucketed queue SQL (shared with the Phase 21 dashboard). Caller has
+    already scoped the student id; this runs no authorization checks."""
+    # include_new adds never-reviewed rows to the queue; the OR lives
+    # INSIDE the parenthesized due-condition (an outside OR would match
+    # every unreviewed row in the database).
+    new_branch = " OR fs.student_vocabulary_id IS NULL" if include_new else ""
+    return (
+        conn.execute(
+            text(
+                "SELECT sv.id AS assignment_id, sv.learning_state, "
+                "fs.due_at, fs.repetitions, fs.lapses, fs.last_review_at, "
+                "vs.id AS sense_id, vs.headword, vs.part_of_speech, vs.cefr_level, "
+                "vs.definition_preview, "
+                "(SELECT st.translation FROM sense_translations st "
+                " WHERE st.sense_id = vs.id ORDER BY st.position LIMIT 1) "
+                "AS translation_pl, "
+                "(SELECT se.example FROM sense_examples se "
+                " WHERE se.sense_id = vs.id ORDER BY se.position LIMIT 1) "
+                "AS example, "
+                "CASE "
+                " WHEN fs.student_vocabulary_id IS NULL THEN 2 "  # new last
+                " WHEN fs.due_at < now() THEN 0 "  # overdue first
+                " ELSE 1 "
+                "END AS bucket, "
+                "CASE WHEN fs.student_vocabulary_id IS NULL THEN NULL "
+                " ELSE fs.due_at < now() END AS is_overdue "
+                "FROM student_vocabulary sv "
+                "JOIN vocabulary_senses vs ON vs.id = sv.sense_id "
+                "LEFT JOIN student_fsrs_states fs "
+                " ON fs.student_vocabulary_id = sv.id "
+                "WHERE sv.student_id = CAST(:sid AS uuid) AND sv.is_active "
+                "AND (fs.student_vocabulary_id IS NULL"
+                + new_branch
+                + " OR fs.due_at <= date_trunc('day', now()) "
+                "        + interval '1 day' - interval '1 microsecond')"
+                + " ORDER BY bucket, fs.due_at NULLS LAST, vs.headword, sv.id "
+                "LIMIT :lim"
+            ),
+            {"sid": sid, "lim": limit},
+        )
+        .mappings()
+        .all()
+    )

@@ -512,12 +512,45 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 - [x] Docs: D022, current-state.md, architecture.md
 - [x] Commit dated 2026-09-30 (+0500), no AI attribution
 
+## Phase 21 (sections 36/98: practical teacher dashboard) — COMPLETE 2026-10-01
+
+- [x] Backend app/core/dashboard.py: per-student §36 payload (counts
+  assigned/learning/reviewing/mastered/due/overdue with the Phase 20
+  SQL definitions, next_up = first §32 queue row, difficult = most
+  HARD ratings in 30 days (top 5), recent_reviews = latest events) +
+  §98 roster rollup (per-student count rows + totals; attention-need
+  ordering overdue → due → name; DELETED excluded, INACTIVE opt-in)
+- [x] Endpoints (teacher-authenticated, §40-scoped, read-only):
+  GET /students/{id}/dashboard, GET /dashboard (new dashboard router
+  module registered in routers.py)
+- [x] Queue SQL extracted to app/core/reviews.py `_due_rows` and shared
+  with the dashboard so next_up can never disagree with the review
+  queue (D023); due_queue public shape/auth unchanged
+- [x] Frontend: live /dashboard page (§98 roster table with totals,
+  per-student counts, overdue highlighted, Review shortcut) +
+  "Review dashboard" panel on the student profile (counts, "What
+  should I review next?" card with Start review, difficult list,
+  recent reviews); dashboard-client.ts typed wrappers; routes.ts
+  phase mapping for /dashboard moved 22 → 21
+- [x] Tests (4, DB-backed): empty student, live flow (assign → next_up;
+  HARD → learning/difficult/recent; backdated → overdue + flag;
+  end-of-today → due; far-future → falls out), state counts + §40
+  isolation + overview parity, overview isolation + attention-need
+  ordering via real FSRS cards; cleanup in finally
+- [x] Live verification: restarted backend on 8737 (needs PYTHONPATH=..),
+  GET /dashboard + GET /students/{id}/dashboard via curl; frontend
+  rebuilt and restarted on 3000 (page title + tagline present)
+- [x] Gates: backend ruff/mypy clean, 318 passed; frontend tsc/eslint
+  clean, vitest 24/24, next build clean
+- [x] Docs: D023, plan.md, current-state.md, architecture.md
+- [x] Commit dated 2026-10-01 (+0500), no AI attribution
+
 ## Phases 21–29 (queued; detailed tasks added as each starts)
 20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures) — COMPLETE above
 19. Vocabulary sets
 20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures)
-21. Review interface (one-at-a-time, keyboard shortcuts, duplicate-submission guard)
-22. Dashboard (per-student due/overdue/learning/reviewing/mastered)
+21. Review interface (one-at-a-time, keyboard shortcuts, duplicate-submission guard) — COMPLETE in Phase 20 above
+22. Dashboard (per-student due/overdue/learning/reviewing/mastered) — COMPLETE as Phase 21 above
 23. Import/export (CSV/XLSX/JSON, validated import)
 24. Security hardening pass
 25. Performance pass (realistic volume)

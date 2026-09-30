@@ -5,6 +5,7 @@ import Link from "next/link";
 import { use, useState } from "react";
 
 import { ApiError } from "@/lib/api";
+import { fetchStudentDashboard } from "@/lib/dashboard-client";
 import { ROUTES } from "@/lib/routes";
 import {
   fetchStudent,
@@ -41,6 +42,12 @@ export default function StudentProfilePage({
   const vocabulary = useQuery({
     queryKey: ["students", "vocabulary", studentId],
     queryFn: () => fetchStudentVocabulary(studentId),
+    retry: false,
+  });
+
+  const dashboard = useQuery({
+    queryKey: ["students", "dashboard", studentId],
+    queryFn: () => fetchStudentDashboard(studentId),
     retry: false,
   });
 
@@ -211,6 +218,16 @@ export default function StudentProfilePage({
 
           <section className="mt-8">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              Review dashboard
+            </h2>
+            {dashboard.isLoading && (
+              <p className="mt-2 text-sm text-neutral-500">Loading…</p>
+            )}
+            {dashboard.data && <DashboardPanel data={dashboard.data} />}
+          </section>
+
+          <section className="mt-8">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
               Assigned vocabulary ({vocabulary.data?.total ?? 0})
             </h2>
             <table className="mt-2 w-full border-collapse text-sm">
@@ -249,7 +266,7 @@ export default function StudentProfilePage({
                 {(vocabulary.data?.items ?? []).length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-6 text-center text-neutral-500">
-                      Nothing assigned yet — assignments arrive in Phase 18.
+                      Nothing assigned yet.
                     </td>
                   </tr>
                 )}
@@ -259,5 +276,131 @@ export default function StudentProfilePage({
         </>
       )}
     </main>
+  );
+}
+
+function DashboardPanel({
+  data,
+}: {
+  data: Awaited<ReturnType<typeof fetchStudentDashboard>>;
+}) {
+  const c = data.counts;
+  const next = data.next_up;
+
+  return (
+    <div className="mt-2 space-y-3">
+      <div className="flex flex-wrap gap-2 text-sm">
+        {(
+          [
+            ["Assigned", c.assigned],
+            ["Learning", c.learning],
+            ["Reviewing", c.reviewing],
+            ["Mastered", c.mastered],
+            ["Due today", c.due],
+            ["Overdue", c.overdue],
+          ] as const
+        ).map(([label, value]) => (
+          <span key={label} className="rounded border border-neutral-200 px-2 py-1">
+            <span className="text-neutral-500">{label}</span>{" "}
+            <span
+              className={`font-semibold ${
+                label === "Overdue" && value > 0 ? "text-red-600" : ""
+              }`}
+            >
+              {value}
+            </span>
+          </span>
+        ))}
+      </div>
+
+      {next ? (
+        <div className="rounded border border-neutral-200 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            What should I review next?
+          </p>
+          <p className="mt-1 text-sm">
+            <span className="font-medium">{next.sense.headword}</span>
+            {next.sense.part_of_speech && (
+              <span className="text-neutral-500"> · {next.sense.part_of_speech}</span>
+            )}
+            {next.sense.translation_pl && (
+              <span className="text-neutral-600"> — {next.sense.translation_pl}</span>
+            )}
+          </p>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            {next.is_overdue === true
+              ? "Overdue — schedule this first."
+              : next.is_overdue === false
+                ? "Due today."
+                : "New — never reviewed."}
+          </p>
+          <Link
+            href={ROUTES.studentReview(data.student.id)}
+            className="mt-2 inline-block rounded bg-neutral-900 px-3 py-1.5 text-xs text-white hover:bg-neutral-800"
+          >
+            Start review
+          </Link>
+        </div>
+      ) : (
+        c.assigned > 0 && (
+          <p className="text-sm text-neutral-500">
+            Nothing due right now — the next card comes back later (see the
+            vocabulary table below).
+          </p>
+        )
+      )}
+
+      {data.difficult.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            Difficult (most HARD ratings, last 30 days)
+          </p>
+          <ul className="mt-1 list-inside list-disc text-sm">
+            {data.difficult.map((d) => (
+              <li key={d.assignment_id}>
+                <Link
+                  href={ROUTES.vocabularySense(d.sense_id)}
+                  className="underline-offset-2 hover:underline"
+                >
+                  {d.headword}
+                </Link>{" "}
+                <span className="text-neutral-500">
+                  — {d.hard_count} HARD of {d.total_reviews} reviews
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {data.recent_reviews.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            Recent reviews
+          </p>
+          <ul className="mt-1 space-y-0.5 text-sm">
+            {data.recent_reviews.slice(0, 5).map((r, i) => (
+              <li key={`${r.headword}-${r.reviewed_at}-${i}`}>
+                <span
+                  className={`inline-block w-14 rounded px-1 text-center text-xs ${
+                    r.rating === "HARD"
+                      ? "bg-red-100 text-red-700"
+                      : r.rating === "MEDIUM"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-green-100 text-green-700"
+                  }`}
+                >
+                  {r.rating}
+                </span>{" "}
+                {r.headword}{" "}
+                <span className="text-xs text-neutral-500">
+                  {new Date(r.reviewed_at).toLocaleString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }

@@ -31,7 +31,7 @@ export interface RouteDefinition {
 
 export const ROUTE_DEFINITIONS: RouteDefinition[] = [
   { path: "/login", phase: 15, description: "Teacher authentication" },
-  { path: "/dashboard", phase: 22, description: "Per-student due/overdue overview" },
+  { path: "/dashboard", phase: 21, description: "Per-student due/overdue overview" },
   { path: "/vocabulary", phase: 16, description: "Dense vocabulary browser" },
   { path: "/vocabulary/[senseId]", phase: 16, description: "Single sense details" },
   { path: "/students", phase: 17, description: "Student list and management" },

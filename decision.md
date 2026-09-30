@@ -1182,3 +1182,60 @@ transitions, and immutable review history.
 ## Status
 
 Accepted
+
+# Decision D023
+
+**Phase 21 — Dashboard: two read models, one definition set (section 36/98)**
+
+## Context
+
+Section 36 asks for a per-student dashboard that answers one question —
+"What should I review with this student next?" — with working counts
+(assigned, learning, reviewing, mastered, due, overdue, difficult,
+recent reviews), explicitly "practical, not analytics-heavy"; section 98
+repeats it as a roster-level view. The §32 due queue and §31 learning
+states already exist from Phase 20.
+
+## Decision
+
+1. **Two read models, not one.** `GET /students/{id}/dashboard` returns
+   the §36 per-student payload (counts + next_up + difficult +
+   recent_reviews); `GET /dashboard` returns the §98 roster rollup (one
+   count row per student + totals). The student-profile dashboard panel
+   embeds the first; the /dashboard page renders the second. No BI
+   features (no charts, no trends, no drill-downs).
+2. **Counts reuse the Phase 20 definitions exactly.** assigned = active
+   rows; learning/reviewing/mastered = the §31 learning_state values;
+   due = FSRS due_at within today; overdue = due_at < now; difficult =
+   most HARD ratings in review_events over a 30-day window (top 5);
+   recent_reviews = latest events, newest first. One SQL definition set,
+   no divergent duplicates.
+3. **next_up delegates to the §32 queue.** The dashboard's primary
+   answer is literally the first row of the review queue (overdue →
+   due → new). The bucketed queue SQL was extracted from
+   app/core/reviews.py into `_due_rows` (no auth checks — callers
+   pre-scope the student) so dashboard and queue can never disagree;
+   `due_queue` keeps its public shape and authorization.
+4. **Roster ordering is attention-need, decided server-side:**
+   overdue DESC, due DESC, display_name. Students with an empty deck
+   still appear (assigned=0) so the roster doubles as a management list;
+   DELETED students never appear, INACTIVE only with
+   `?include_inactive=true` (matching GET /students).
+5. **Dashboard endpoints are read-only** and use `get_engine().connect()`
+   (no transaction); review mutations keep happening through POST
+   /reviews only.
+
+## Alternatives considered
+
+- A single aggregate endpoint with per-student expansion (rejected:
+  mixes the two views' shapes; pagination/roster growth complicates the
+  per-student payload).
+- Computing "difficult" from FSRS difficulty scalars (rejected:
+  §36's "difficult" is behavioral — HARD ratings — and the difficulty
+  scalar is model-internal).
+- Client-side aggregation from existing list endpoints (rejected:
+  N+1 requests, and count definitions would drift from the server).
+
+## Status
+
+Accepted

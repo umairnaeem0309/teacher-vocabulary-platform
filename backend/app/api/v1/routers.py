@@ -10,6 +10,7 @@ from fastapi.routing import APIRouter
 from app.api.v1.admin import router as admin_router
 from app.api.v1.assignments import router as assignments_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.exports import router as exports_router
 from app.api.v1.fsrs import router as fsrs_router
 from app.api.v1.health import router as health_router
@@ -24,6 +25,7 @@ routers: list[APIRouter] = [
     health_router,
     auth_router,
     students_router,
+    dashboard_router,
     vocabulary_router,
     search_router,
     sets_router,

@@ -1,9 +1,22 @@
 # Current State
 
-Last updated: after Phase 20 (see plan.md for phase list)
+Last updated: after Phase 21 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 21 — Practical teacher dashboard (§36/§98): **COMPLETE**.
+Two read models over one SQL definition set (D023): per-student
+GET /students/{id}/dashboard (counts assigned/learning/reviewing/
+mastered/due/overdue reusing the Phase 20 definitions, next_up =
+first §32 queue row via the shared `_due_rows` SQL, difficult = most
+HARD ratings in 30 days, recent_reviews = latest §33 events) and
+roster GET /dashboard (per-student count rows + totals, attention-need
+ordering overdue → due → name, DELETED excluded, INACTIVE opt-in).
+Frontend: live /dashboard roster table (totals chips, overdue
+highlighted, per-student Review shortcut) and a "Review dashboard"
+panel on the student profile ("What should I review next?" card with
+Start review, difficult list, recent reviews). No BI features. Live
+verified on both servers (restarted to pick up the new code).
 Phase 20 — FSRS scheduling + review flow (§31–§35): **COMPLETE**.
 Library-backed py-fsrs 6.3.2, deterministic (fuzzing off, no micro
 steps), rating mapping exactly HARD→Again / MEDIUM→Hard / EASY→Good.
@@ -287,13 +300,13 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 314 passed (incl. 13 auth, 21 search, 17 import,
+- Backend pytest: 318 passed (incl. 13 auth, 21 search, 17 import,
   8 vocabulary browse/detail, 6 students, 7 assignments, 5 sets,
-  6 reviews/FSRS, 16 embeddings, 7 pgvector, sandboxed migration
-  roundtrip)
+  6 reviews/FSRS, 4 dashboard, 16 embeddings, 7 pgvector, sandboxed
+  migration roundtrip)
 - Frontend vitest: 24 passed (route coverage 15, API client 4,
   table URL state 5)
-- Quality gates: ruff clean, mypy clean (34 files), tsc clean, eslint clean,
+- Quality gates: ruff clean, mypy clean (41 files), tsc clean, eslint clean,
   `next build` passes (route table shows all 12 routes)
 - Live HTTP smoke: X-Request-ID on responses; 404/501 envelopes; access log
   lines with correlation IDs; `health` reports `database: up` when DB reachable
@@ -339,16 +352,15 @@ Phase 1:
 - **Inspected** (Phase 3): full inventory in docs/data-source-inventory.md.
 
 ## Search state
-- Not implemented (Phase 14). Search router registered as 501 stub.
+- Live since Phase 14 (see above).
 
 ## Deployment state
 - Development only. Deployment docs are a Phase 28 deliverable.
 
 ## Next task
-Phase 14: Search — exact/full-text/semantic (precomputed BGE-M3
-embeddings + pgvector HNSW) + hybrid, filters, sorting, pagination,
-benchmarked (§90). Unblocked: vocabulary imported (Phase 13);
-embeddings generating (Phase 12 full run, resumable).
+Phase 22 (plan-queue 23): Import/export — CSV/XLSX/JSON round-trip
+with validated import (§37–§38 area; copy-to-clipboard formats from
+§37 land with the vocabulary UI polish).
 
 ---
 

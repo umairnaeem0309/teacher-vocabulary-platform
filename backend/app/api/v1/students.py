@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from app.api.v1.auth import _require_teacher
+from app.core import dashboard as dashboard_core
 from app.core import students as students_core
 from app.db.session import get_engine
 
@@ -60,9 +61,7 @@ def list_students(
 ) -> dict[str, Any]:
     """List the teacher's students (§27)."""
     with get_engine().begin() as conn:
-        items = students_core.list_students(
-            conn, _tid(teacher), include_inactive
-        )
+        items = students_core.list_students(conn, _tid(teacher), include_inactive)
     return {"students": items, "total": len(items)}
 
 
@@ -89,9 +88,7 @@ def get_student(teacher: TeacherDep, student_id: str) -> dict[str, Any]:
 
 
 @router.patch("/{student_id}")
-def update_student(
-    teacher: TeacherDep, student_id: str, body: StudentUpdate
-) -> dict[str, Any]:
+def update_student(teacher: TeacherDep, student_id: str, body: StudentUpdate) -> dict[str, Any]:
     """Edit student (§27) — absent fields keep their values."""
     sent = body.model_fields_set
     with get_engine().begin() as conn:
@@ -112,16 +109,19 @@ def change_status(
 ) -> dict[str, Any]:
     """Deactivate/reactivate/delete (§27; delete is soft)."""
     with get_engine().begin() as conn:
-        return students_core.set_status(
-            conn, _tid(teacher), student_id, body.status
-        )
+        return students_core.set_status(conn, _tid(teacher), student_id, body.status)
 
 
 @router.get("/{student_id}/vocabulary")
 def student_vocabulary(teacher: TeacherDep, student_id: str) -> dict[str, Any]:
     """View assigned vocabulary + learning state (§27/§28)."""
     with get_engine().connect() as conn:
-        items = students_core.student_vocabulary(
-            conn, _tid(teacher), student_id
-        )
+        items = students_core.student_vocabulary(conn, _tid(teacher), student_id)
     return {"items": items, "total": len(items)}
+
+
+@router.get("/{student_id}/dashboard")
+def student_dashboard(teacher: TeacherDep, student_id: str) -> dict[str, Any]:
+    """Per-student dashboard (§36): counts, next-up, difficult, recent."""
+    with get_engine().connect() as conn:
+        return dashboard_core.student_dashboard(conn, _tid(teacher), student_id)

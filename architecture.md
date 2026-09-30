@@ -324,6 +324,32 @@ Students have no credentials.
 - Endpoints (teacher-authenticated): GET /reviews/due (overdue → due
   today → new), POST /reviews, GET /fsrs/parameters.
 
+## Dashboard (Phase 21)
+
+- Two read models over one SQL definition set (§36/§98, D023), both
+  read-only and teacher-scoped (§40):
+  - `GET /students/{id}/dashboard` — the §36 per-student payload:
+    counts (assigned/learning/reviewing/mastered/due/overdue, reusing
+    the Phase 20 definitions), `next_up` (first row of the §32 queue),
+    `difficult` (most HARD ratings over 30 days, top 5),
+    `recent_reviews` (latest §33 events).
+  - `GET /dashboard` — the §98 roster rollup: one count row per
+    student + totals, ordered by attention need (overdue → due →
+    name). DELETED students never appear; INACTIVE only with
+    `include_inactive=true` (matching GET /students).
+- `next_up` shares the review queue's bucketed SQL: the Phase 20
+  queue SQL lives in `app/core/reviews.py::_due_rows` (no auth checks;
+  callers pre-scope), so the dashboard's primary answer can never
+  disagree with what GET /reviews/due returns first.
+- Service logic in `app/core/dashboard.py`; routes are the students
+  router plus a small dedicated `dashboard` router. No BI features —
+  no charts, trends, or drill-downs (§36 "practical, not
+  analytics-heavy").
+- Frontend: `/dashboard` roster page (totals chips, per-student counts,
+  overdue highlighted, Review shortcut) and a per-student "Review
+  dashboard" panel on the profile (counts, next-up card, difficult
+  list, recent reviews).
+
 ## Vocabulary sets (Phase 19)
 
 - Sets are references only: `vocabulary_set_items` has

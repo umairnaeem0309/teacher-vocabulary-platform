@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 
 import { FilterPanel } from "@/components/vocabulary/FilterPanel";
+import { ImportExportPanel } from "@/components/vocabulary/ImportExportPanel";
 import { SessionBar } from "@/components/SessionBar";
 import { ApiError } from "@/lib/api";
 import { assignSenses } from "@/lib/assignments-client";
@@ -379,6 +380,15 @@ function VocabularyPage() {
               </button>
             </div>
           </div>
+
+          <details className="mt-4">
+            <summary className="cursor-pointer text-sm text-neutral-600 hover:text-neutral-900">
+              Export / import
+            </summary>
+            <div className="mt-2">
+              <ImportExportPanel filters={state.filters} />
+            </div>
+          </details>
         </section>
       </div>
     </main>

@@ -1,9 +1,20 @@
 # Current State
 
-Last updated: after Phase 21 (see plan.md for phase list)
+Last updated: after Phase 22 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 22 — Import/export (§38/§99): **COMPLETE**. Master-vocabulary
+file export (CSV/XLSX/JSON, stable 10-column schema) selected by the
+same engine filters as the workbench, student-viewpoint filters
+forbidden (D024). Validated import in two steps (preview → commit):
+insert-only with deduped appends, conflicting master fields skipped
+and reported, invalid rows abort 422 with zero partial writes,
+sense_key round-trip verified lossless (export → delete → re-import).
+openpyxl + python-multipart added; AppError envelope bug fixed
+(instance messages now surface). Frontend: Export/import panel on the
+vocabulary workbench. 329 backend tests, 24 frontend tests, all gates
+clean.
 Phase 21 — Practical teacher dashboard (§36/§98): **COMPLETE**.
 Two read models over one SQL definition set (D023): per-student
 GET /students/{id}/dashboard (counts assigned/learning/reviewing/
@@ -300,10 +311,10 @@ Phase 1:
   client (ApiError) mirroring the envelope; Vitest wired.
 
 ## Tests passed
-- Backend pytest: 318 passed (incl. 13 auth, 21 search, 17 import,
+- Backend pytest: 329 passed (incl. 13 auth, 21 search, 17 import,
   8 vocabulary browse/detail, 6 students, 7 assignments, 5 sets,
-  6 reviews/FSRS, 4 dashboard, 16 embeddings, 7 pgvector, sandboxed
-  migration roundtrip)
+  6 reviews/FSRS, 4 dashboard, 11 import/export, 16 embeddings,
+  7 pgvector, sandboxed migration roundtrip)
 - Frontend vitest: 24 passed (route coverage 15, API client 4,
   table URL state 5)
 - Quality gates: ruff clean, mypy clean (41 files), tsc clean, eslint clean,
@@ -358,9 +369,9 @@ Phase 1:
 - Development only. Deployment docs are a Phase 28 deliverable.
 
 ## Next task
-Phase 22 (plan-queue 23): Import/export — CSV/XLSX/JSON round-trip
-with validated import (§37–§38 area; copy-to-clipboard formats from
-§37 land with the vocabulary UI polish).
+Phase 23 (plan-queue 24): Security hardening pass (§39/§40 checklist,
+rate limiting where appropriate, CSRF review, safe file handling
+review).
 
 ---
 

@@ -25,8 +25,10 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from typing import Any
 
 from pipeline.normalize.clean import search_key
+from pipeline.normalize.normalizer import NormalizedSenseCandidate
 from pipeline.normalize.pos import canonical_pos
 from pipeline.records import RecordStats
 
@@ -161,7 +163,7 @@ class _Cluster:
         return _same_meaning(self.tokens, tokens)
 
 
-def build_sense_key_for_candidate(candidate) -> str:
+def build_sense_key_for_candidate(candidate: NormalizedSenseCandidate) -> str:
     """Convenience: key for a NormalizedSenseCandidate (display unchanged)."""
     return make_sense_key(
         candidate.headword_search, candidate.pos_canonical, candidate.gloss_search
@@ -234,7 +236,7 @@ def resolve_identities(candidates: list) -> tuple[list[MasterSense], RecordStats
 
 def _merge_translations(members: list) -> list:
     """Union aligned translations across merged candidates, best confidence wins."""
-    best: dict[tuple[str, str], object] = {}
+    best: dict[tuple[str, str], Any] = {}
     for m in members:
         for t in m.translations:
             key = (search_key(t.text), t.method)

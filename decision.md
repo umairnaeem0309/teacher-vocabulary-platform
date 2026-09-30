@@ -1239,3 +1239,71 @@ states already exist from Phase 20.
 ## Status
 
 Accepted
+
+# Decision D024
+
+**Phase 22 — Import/export: master-vocabulary files, insert-only import (section 38/99)**
+
+## Context
+
+§38 requires CSV/Excel/JSON support where "the database remains
+authoritative", import validates before modifying production records,
+and export preserves enough for "controlled data inspection and
+migration". §99 adds: implement imports only after validation; never
+accidentally overwrite production vocabulary without explicit
+safeguards.
+
+## Decision
+
+1. **Scope: master vocabulary, not learning data.** Exports carry the
+   stable 10-column schema (sense_key, headword, POS, CEFR,
+   definition, priority level, frequency rank, Polish translations,
+   examples, flags) — the information a teacher inspects or another
+   deployment re-imports. Student-viewpoint filters (student_id,
+   assigned, learning_states, due_only, difficult_only,
+   teacher_priority_only) are forbidden on the export model
+   (extra="forbid" -> 422): student learning data never leaves through
+   a file download (§39/§40 posture).
+2. **Selection = the workbench's own filters.** Export reuses the
+   Phase 14 engine's `_apply_filters` composition, so exported rows are
+   exactly what the filtered table shows. Row order is deterministic
+   (headword, sense_key). A 50,000-row cap guards against runaway
+   requests (the full corpus fits).
+3. **Two-step import: preview, then commit.** POST
+   /imports/vocabulary/preview parses and fully validates (headers,
+   per-row structure, DB classification) and writes nothing; POST
+   /imports/vocabulary re-validates and commits in one transaction.
+   Structurally invalid rows (missing headword, bad POS/CEFR/flag,
+   unknown sense_key, over-length fields) fail the whole request with
+   422 and a per-row report — never a partial import.
+4. **Insert-only, conflicts skip.** Imports INSERT new senses and
+   APPEND translations/examples/flags (deduped by normalized value);
+   they never UPDATE or DELETE. A row whose master fields (POS, CEFR,
+   definition) differ from the stored sense is reported as a conflict
+   and skipped — production vocabulary cannot be overwritten, even
+   deliberately, through this endpoint.
+5. **Identity is the sense_key round-trip (D008).** A row carrying a
+   previous export's sense_key attaches to that sense; a row without
+   one derives its key with the exact Phase 6 algorithm
+   (make_sense_key ∘ search_key ∘ canonical_pos ∘ clean_gloss —
+   verified to reproduce 300/300 stored keys). Derived keys that hit a
+   different meaning surface as conflicts, not silent merges. This
+   makes export -> wipe -> re-import lossless for imported content.
+6. **XLSX via openpyxl** (write-only for export, read-only for
+   import); CSV is RFC-4180 UTF-8 (BOM tolerated); JSON is an array of
+   row objects. Upload cap: 10,000 rows. The multipart parser
+   (python-multipart) is an explicit dependency.
+
+## Alternatives considered
+
+- Full upsert import with field-level merge (rejected: §99's
+  accidental-overwrite concern outweighs convenience; append-only
+  covers the real use case — adding new lesson vocabulary).
+- Export including per-student learning state (rejected: privacy and
+  §38's "controlled" scope; student data has its own live views).
+- Client-side CSV/XLSX generation (rejected: filter parity and
+  §40-authorization live server-side).
+
+## Status
+
+Accepted

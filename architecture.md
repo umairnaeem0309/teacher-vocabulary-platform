@@ -324,6 +324,36 @@ Students have no credentials.
 - Endpoints (teacher-authenticated): GET /reviews/due (overdue → due
   today → new), POST /reviews, GET /fsrs/parameters.
 
+## Import/export (Phase 22)
+
+- Master-vocabulary files only (§38/§99, D024): a stable 10-column
+  schema (sense_key, headword, POS, CEFR, definition, priority level,
+  frequency rank, translations_pl, examples, flags). Student learning
+  data never exports; student-viewpoint filters are forbidden on the
+  export model (extra=forbid → 422).
+- Export: POST /exports/vocabulary (teacher-only) returns file
+  downloads (CSV / XLSX / JSON). Selection reuses the Phase 14
+  engine's `_apply_filters`, so an export equals the filtered
+  workbench view; deterministic ordering; 50k-row cap; XLSX streams
+  via openpyxl write-only mode.
+- Import: two-step — POST /imports/vocabulary/preview (parse +
+  validate + classify; zero writes) then POST /imports/vocabulary
+  (re-validate + commit in one transaction). CSV (RFC-4180, BOM
+  tolerated), XLSX (first sheet), JSON (array); 10k-row cap;
+  multipart via python-multipart.
+- §99 safeguards: insert-only (senses INSERT; translations, examples
+  and flags APPEND deduped; no UPDATE/DELETE anywhere in the import
+  path). Rows whose master fields differ from the stored sense are
+  skipped and reported as conflicts. Structurally invalid rows abort
+  the request with 422 and a per-row report — zero partial writes.
+- Identity is the sense_key round-trip (D008): exported keys reattach;
+  keyless rows derive keys with the exact Phase 6 chain
+  (make_sense_key ∘ search_key ∘ canonical_pos ∘ clean_gloss), so
+  export → wipe → re-import reproduces the same identity.
+- Frontend: an "Export / import" panel on the vocabulary workbench —
+  Blob download honoring current filters; file upload → Validate
+  (per-row status) → explicit Import button.
+
 ## Dashboard (Phase 21)
 
 - Two read models over one SQL definition set (§36/§98, D023), both

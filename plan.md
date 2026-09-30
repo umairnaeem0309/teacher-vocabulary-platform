@@ -545,13 +545,59 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 - [x] Docs: D023, plan.md, current-state.md, architecture.md
 - [x] Commit dated 2026-10-01 (+0500), no AI attribution
 
+## Phase 22 (sections 38/99: import/export) — COMPLETE 2026-10-01
+
+- [x] Exports (POST /exports/vocabulary, teacher-authenticated):
+  CSV / XLSX / JSON file downloads over master vocabulary with the
+  stable 10-column schema; selection reuses the Phase 14 engine's
+  filter composition (export = exactly what the filtered workbench
+  shows); deterministic order; 50k-row cap; student-viewpoint filters
+  forbidden (extra=forbid → 422, D024)
+- [x] Imports (teacher-authenticated, multipart): POST
+  /imports/vocabulary/preview (parse + validate + classify, zero
+  writes) and POST /imports/vocabulary (re-validate + commit in one
+  transaction); CSV (RFC-4180, BOM tolerated), XLSX (openpyxl
+  read-only, first sheet), JSON (array of objects); 10k-row cap;
+  header + per-row validation (headword required, POS/CEFR/flag
+  whitelists, length caps, unknown sense_key)
+- [x] §99 safeguards (D024): insert-only (INSERT senses, APPEND
+  deduped translations/examples/flags; no UPDATE/DELETE anywhere);
+  conflicting master fields → row skipped and reported, never
+  overwritten; invalid rows abort with 422 and a per-row report
+  (zero partial writes, proven by test)
+- [x] Identity round-trip: sense_key from export reattaches; keyless
+  rows derive the D008 key via the exact Phase 6 chain
+  (make_sense_key ∘ search_key ∘ canonical_pos ∘ clean_gloss —
+  verified 300/300 against stored keys); export → delete → re-import
+  reproduces the same sense_key and content (test)
+- [x] Dependencies: openpyxl 3.1.5 (+ types-openpyxl stubs group),
+  python-multipart; app/core/exports.py + app/core/imports.py;
+  imports.py/exports.py stubs replaced; mypy pipeline override
+  documented (identity now reachable from app)
+- [x] Bug fix found by tests: AppError.__init__ never stored the
+  instance message — envelopes showed the class default; specific
+  422 messages now reach clients
+- [x] Frontend: Export/import panel on the vocabulary workbench
+  (format picker + filtered download; file upload → Validate →
+  per-row status report → Import N new sense(s) with insert-only
+  notice); io-client.ts with Blob download + multipart posts
+- [x] Tests (11, DB-backed): auth 401s; CSV/JSON/XLSX round-trips;
+  filter selection; student-viewpoint rejection; lifecycle (preview
+  → commit → verify rows/translations → re-import touches nothing);
+  xlsx+json import; validation abort with zero writes; bad
+  headers/flags/unknown key; export→wipe→re-import roundtrip
+- [x] Gates: backend ruff/mypy clean, 329 passed; frontend tsc/eslint
+  clean, vitest 24/24, next build clean
+- [x] Docs: D024, plan.md, current-state.md, architecture.md
+- [x] Commit dated 2026-10-01 (+0500), no AI attribution
+
 ## Phases 21–29 (queued; detailed tasks added as each starts)
 20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures) — COMPLETE above
 19. Vocabulary sets
 20. FSRS (library-backed; HARD→Again MEDIUM→Hard EASY→Good; fixtures)
 21. Review interface (one-at-a-time, keyboard shortcuts, duplicate-submission guard) — COMPLETE in Phase 20 above
 22. Dashboard (per-student due/overdue/learning/reviewing/mastered) — COMPLETE as Phase 21 above
-23. Import/export (CSV/XLSX/JSON, validated import)
+23. Import/export (CSV/XLSX/JSON, validated import) — COMPLETE as Phase 22 above
 24. Security hardening pass
 25. Performance pass (realistic volume)
 26. Backups & restoration (real restore test)

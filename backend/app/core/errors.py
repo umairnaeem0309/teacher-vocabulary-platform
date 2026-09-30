@@ -30,6 +30,10 @@ class AppError(Exception):
         details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message or self.message)
+        # Carry the instance message into the error envelope: without
+        # this, every envelope showed the class-level default and the
+        # specific, user-actionable text was lost (found in Phase 22).
+        self.message = message or self.message
         self.details = details or {}
 
 

@@ -607,10 +607,22 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
    - 19 new tests in `backend/tests/test_security.py`; gates: ruff/mypy clean, pytest 351 passed, tsc/vitest/lint/next build green, live curl verified (cross-origin POST → 403, same-origin → 401, origin-less → 401, 12 rapid logins → 401+429, envelope carries request_id).
    - Docs: D025 in decision.md, current-state.md + architecture.md Security section, `.env.example` SECURITY block.
    - Commit `feat/security: security hardening pass (phase 23)` (plain git commit, per D021).
-25. Performance pass (realistic volume)
-26. Backups & restoration (real restore test)
+25. Performance pass (realistic volume) — COMPLETE 2026-10-02
+   - `scripts/phase25_perf_benchmark.py`: end-to-end HTTP p50 over the full
+     DB (41,687 senses) for lexical/semantic/hybrid search, browse at 50/200
+     rows, sense detail, bulk assignment (new + already), student profile,
+     review queue, dashboards, students list. Report written to
+     `data/construction/phase25_perf_report.json`.
+   - Measured: cold semantic unique query ~450–680 ms (CPU embed); repeated
+     semantic ~70–90 ms; hybrid repeat ~170 ms; everything else 10–100 ms.
+   - Fixes (D027): bounded query-embedding LRU cache (≈830→~80 ms repeats);
+     frontend page-size clamp corrected 500→200 to match API `MAX_LIMIT`
+     (a >200 page size previously returned 422 and broke the table).
+   - Gates: ruff/mypy clean, pytest 351 passed; frontend tsc/eslint clean,
+     vitest 24/24, next build green.
+26. Backups & restoration (real restore test) — local pg_dump/pg_restore per D026
 27. Full end-to-end testing (incl. section-59 acceptance workflow in Playwright)
-28. Production readiness (clean-environment verification)
+28. Local readiness (clean-environment verification; no deployment per D026)
 29. Final acceptance report (docs/final-acceptance-report.md)
 
 ---

@@ -51,7 +51,7 @@ describe("stateToParams / paramsToState", () => {
     const params = new URLSearchParams("page=-4&size=99999&maxrank=abc");
     const state = paramsToState(params);
     expect(state.page).toBe(0);
-    expect(state.pageSize).toBe(500); // clamped to the hard cap
+    expect(state.pageSize).toBe(200); // clamped to the backend MAX_LIMIT
     expect(state.filters.max_frequency_rank).toBeNull();
   });
 

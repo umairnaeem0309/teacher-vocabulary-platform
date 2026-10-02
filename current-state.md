@@ -4,6 +4,16 @@ Last updated: after Phase 23 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 25 — Performance pass (§101): **COMPLETE** 2026-10-02. Measured first
+with `scripts/phase25_perf_benchmark.py` at full volume (41,687 senses):
+cold semantic unique query ~450–680 ms (CPU query embedding dominates),
+repeated semantic ~70–90 ms, hybrid repeat ~170 ms, browse 200 rows ~100 ms,
+bulk assignment 250 ~26 ms, student profile 500+ rows ~45 ms (355 KB),
+review queue ~25 ms, dashboards ~16–26 ms. Two fixes (D027): a bounded
+LRU cache on the query embedding in `pipeline/search/engine.py`, and a
+page-size clamp correction (frontend allowed 500 but the API caps at
+`MAX_LIMIT`=200 → 422). Gates green: ruff/mypy clean, pytest 351 passed,
+frontend tsc/eslint clean, vitest 24/24, next build.
 Phase 23 — Security hardening (§39/§40): **COMPLETE** 2026-10-02.
 Per-client-IP sliding-window rate limiting (login 10/300s · upload 20/300s
 · read 240/60s · write 120/60s; `max_requests <= 0` disables a route
@@ -109,7 +119,7 @@ data/construction/phase12_full.log); HNSW index rebuilt over the
 complete corpus via --reigate (262s; D016 rule satisfied); semantic
 recall verified post-rebuild (bank top-5, 0.054s query). Resumable
 (--full --resume), safe to interrupt.
-Next: Phase 25 — Performance pass (realistic volume)
+Next: Phase 26 — Backups & restoration (local pg_dump/pg_restore, real restore test, per D026)
 
 ## Completed work
 Phase 13:
@@ -349,6 +359,8 @@ Phase 1:
 
 ## Tests passed
 - Backend pytest: 351 passed (phase 23 adds test_security.py: 19 rate-limit/CSRF/origin/payload tests)
+- Phase 25 performance: `scripts/phase25_perf_benchmark.py` (full DB) —
+  see plan.md/decision.md D027 and docs/search.md for the recorded table
 - Frontend vitest: 24 passed
 - Quality gates: ruff clean, mypy clean, tsc clean, eslint clean, `next build` passes
 - Live HTTP smoke: secure headers present; cross-origin POST → 403; same-origin → 401; origin-less → 401; 12 rapid logins → 401×5 + 429×4; envelopes carry `X-Request-ID` + `request_id`.
@@ -390,9 +402,9 @@ Phase 1:
   a clean **local** reinstall/run, not a deployment.
 
 ## Next task
-Phase 23 (plan-queue 24): Security hardening pass (§39/§40 checklist,
-rate limiting where appropriate, CSRF review, safe file handling
-review).
+Phase 26 — Backups & restoration: local PostgreSQL `pg_dump`/`pg_restore`
+scripts, retention, and a real restoration test, documented in
+docs/backups.md (D026 keeps this in scope; it is entirely local).
 
 ---
 

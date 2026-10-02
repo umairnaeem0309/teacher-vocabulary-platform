@@ -115,7 +115,9 @@ function parseSort(value: string | null): SortKey {
 function clampPageSize(value: string | null): number {
   const n = parseNonNegativeInt(value);
   if (n === null || n < 10) return DEFAULT_PAGE_SIZE;
-  return Math.min(n, 500);
+  // Hard cap must match the backend's MAX_LIMIT (200) or the API returns
+  // 422 for a page size the URL/UI otherwise accepts (Phase 25 fix).
+  return Math.min(n, 200);
 }
 
 /** True when nothing deviates from the defaults (hides a clean URL). */

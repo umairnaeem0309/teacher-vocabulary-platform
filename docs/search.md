@@ -92,6 +92,43 @@ outrank everything; "money bank" surfaces bank/withdraw/deposit; Polish
 "things needed when traveling" returns travel vocabulary
 (get/case/bus...) even though the phrase occurs nowhere verbatim (§21).
 
+## Performance (Phase 25, D027)
+
+End-to-end HTTP p50 over the full development DB (41,687 senses,
+embeddings loaded), measured by `scripts/phase25_perf_benchmark.py`
+(5 repeats, warm caches, report in
+`data/construction/phase25_perf_report.json`):
+
+```text
+lexical search (bank)             ~130–320 ms (run variance)
+browse table 50 / 200 rows        ~100 ms / ~100 ms
+semantic (repeat, cached)         ~70–90 ms
+semantic (cold unique query)      ~450–680 ms
+hybrid (repeat, cached)           ~170 ms
+hybrid + filters                  ~90 ms
+vocabulary detail (1 sense)       ~17 ms
+bulk assignment 250 new/already   ~26 / ~27 ms
+student profile (500+ rows)       ~45 ms, ~355 KB payload
+per-student dashboard             ~26 ms
+review queue                      ~25 ms
+dashboard rollup                  ~16 ms
+students list                     ~13 ms
+```
+
+Interpretation:
+
+- **Cold semantic latency is the CPU query embedding** (~260 ms of the
+  ~450–680 ms), not the vector search: HNSW returns 50 neighbors in
+  ~5 ms. The `count(*)` for pagination totals costs ~50–90 ms.
+- **Repeated queries are memoized** (`embed_query`, bounded LRU of 256),
+  so the common teacher pattern of re-running a topic query across
+  students costs ~70–90 ms instead of ~830 ms.
+- The HNSW vector search itself is not the bottleneck at this corpus
+  size; the index is used as intended (no per-row embedding at search
+  time).
+- The workbench is server-paginated and capped at the API `MAX_LIMIT`
+  (200 rows), which bounds both payload and render work.
+
 ## Operational notes
 
 - The HNSW index MUST be rebuilt after bulk embedding loads

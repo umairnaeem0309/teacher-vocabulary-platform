@@ -232,6 +232,12 @@ One endpoint: POST /api/v1/vocabulary/search.
 - Browse semantics: empty query and non-relevance sorts are full-set
   SQL-ordered pages; strict multi-word lexical queries fall back to a
   loose OR-join on zero hits (§21 topic phrases).
+- Performance (Phase 25, D027): the teacher's query embedding is
+  memoized in a bounded LRU cache (`embed_query`, 256 entries) because
+  the CPU encode dominates semantic latency and the model is fixed
+  (D014); repeated semantic/hybrid queries drop from ~830 ms to ~80 ms.
+  The workbench page size is capped at the API's `MAX_LIMIT` (200) so a
+  URL/UI page size can never exceed what the search API accepts.
 - Operational rule: the HNSW index must be REBUILT after bulk embedding
   loads (phase12 script --reindex) — an incrementally-grown graph had
   near-zero recall (diagnosed Phase 14, D016).

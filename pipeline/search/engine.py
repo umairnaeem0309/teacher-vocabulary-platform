@@ -29,6 +29,7 @@ from __future__ import annotations
 import dataclasses
 import uuid
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
 from sqlalchemy import text
@@ -369,12 +370,26 @@ def _prefix_predicates(q: str) -> tuple[str, str, dict[str, Any]]:
 # Layer 3: semantic search
 # --------------------------------------------------------------------------
 
-def embed_query(text_query: str) -> list[float]:
-    """Embed the teacher's query once (BGE-M3, same model as the corpus)."""
+@lru_cache(maxsize=256)
+def _embed_query_cached(text_query: str) -> tuple[float, ...]:
+    """CPU query embedding, memoized (Phase 25 performance).
+
+    The model is locked to a single version (D014) and encoding is
+    deterministic, so the vector for a given query text never changes
+    within a process. On CPU the encode dominates semantic latency
+    (~260 ms vs ~5 ms for the actual vector search), and teachers
+    routinely repeat the same topic query across students, so caching
+    safely removes the dominant cost for repeats. Bounded to 256 entries.
+    """
     from pipeline.enrich.embeddings import EmbeddingModel
 
     model = EmbeddingModel.shared()
-    return model.encode([text_query])[0]
+    return tuple(model.encode([text_query])[0])
+
+
+def embed_query(text_query: str) -> list[float]:
+    """Embed the teacher's query once (BGE-M3, same model as the corpus)."""
+    return list(_embed_query_cached(text_query))
 
 
 def _semantic_query(

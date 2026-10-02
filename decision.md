@@ -1429,3 +1429,67 @@ longer exists.
 ## Status
 
 Accepted
+
+---
+
+# Decision D027
+
+## Date
+2026-10-02
+
+## Decision
+
+Phase 25 performance pass. Measured first (§101: "do not optimize
+blindly"), then made two targeted fixes:
+
+1. **Memoize the teacher's query embedding.** `embed_query` now delegates
+to a bounded `lru_cache(maxsize=256)` in
+`pipeline/search/engine.py`. The corpus model is locked to one version
+(D014) and encoding is deterministic, so a query string's vector never
+changes within a process. On this CPU the BGE-M3 encode dominates
+semantic latency (measured ~260 ms vs ~5 ms for the HNSW search and
+~50–90 ms for the `count(*)`), so caching removes the largest cost for
+the common case where a teacher re-runs the same topic query.
+Measured: repeated semantic query ~830 ms → ~70–90 ms; hybrid ~650 ms
+→ ~170 ms (cold unique queries still pay the encode, ~450–680 ms).
+2. **Align page-size caps.** The workbench accepted `size` up to 500
+(`table-url-state.ts`) but the API rejects `limit > MAX_LIMIT = 200`
+with 422, so a URL/UI page size between 201 and 500 broke the table.
+The frontend clamp is now 200, matching the backend.
+
+## Measured baseline (full DB: 41,687 senses, warm caches)
+
+```text
+lexical search (bank)          ~130–320 ms (run variance)
+browse table 50 / 200 rows     ~100 ms / ~100 ms
+semantic (repeat, cached)      ~70–90 ms
+semantic (cold unique query)   ~450–680 ms
+hybrid (repeat, cached)        ~170 ms
+vocabulary detail              ~17 ms
+bulk assignment 250 new/already ~26 / ~27 ms
+student profile (500+ rows)    ~45 ms, ~355 KB payload
+per-student dashboard          ~26 ms
+review queue                   ~25 ms
+dashboard rollup               ~16 ms
+students list                  ~13 ms
+```
+
+Everything except cold semantic embedding is comfortably interactive.
+Core Web Vitals note: the workbench table is server-paginated and
+renders ≤200 rows, so "large table rendering" is bounded by the page
+cap rather than by the corpus size.
+
+## Alternatives considered
+
+- Startup pre-load of BGE-M3 (rejected for now: adds ~10 s to every
+  process start, including tests; lazy load + cache is the better
+  default. The first cold search still pays the one-time load).
+- Raising backend `MAX_LIMIT` to 500 instead of lowering the frontend
+  cap (rejected: 200 dense rows is already generous for a teaching
+  table; a larger page mainly increases payload and render cost).
+- Rewriting the semantic `count(*)` (deferred: measured 50–90 ms, not
+  the bottleneck; changing it risks pagination totals).
+
+## Status
+
+Accepted

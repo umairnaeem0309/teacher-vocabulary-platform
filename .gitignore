@@ -37,6 +37,8 @@ data/processed/
 data/embeddings/
 data/construction/
 data/source-inventory.json
+# Local PostgreSQL backups (Phase 26) contain the full live database — never commit.
+data/backups/
 
 # --- SQLite construction databases ---
 *.sqlite

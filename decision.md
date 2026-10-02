@@ -1493,3 +1493,48 @@ cap rather than by the corpus size.
 ## Status
 
 Accepted
+
+---
+
+# Decision D028
+
+## Date
+2026-10-02
+
+## Decision
+
+Backups and restoration (§51/§64/§102) are implemented as **local
+`pg_dump`/`pg_restore`** tooling (`pipeline/storage/backup.py` +
+`scripts/db_backup.py`), consistent with the local-only scope (D026):
+
+1. **Backup** with `pg_dump --format=custom` into `data/backups/`
+   (Git-ignored) as `vocab_platform_YYYYmmdd_HHMMSS.dump`. Custom format
+   restores whole or selectively.
+2. **Retention** keeps the newest 7 dumps by default (`--keep`; minimum
+   1) and only ever deletes `.dump` files.
+3. **Restore** with `pg_restore --no-owner --no-privileges`, creating the
+   target database by default; `--clean` and `--no-create` for the other
+   cases.
+4. **Verification is a real restoration test** (`verify`): restore the
+   dump into a disposable scratch database, compare *every* public table's
+   row count and the Alembic revision against the live database, then drop
+   the scratch database. No theoretical restore.
+
+Recorded 2026-10-02: 241,842,655-byte dump, 27 tables, 625,084 rows on
+both sides, identical revision `b8e5d1f2a3c4`, zero mismatches —
+RESTORE VERIFIED OK (docs/backups.md, `data/construction/phase26_restore_report.json`).
+Automated: `backend/tests/test_backup_tools.py` includes a real
+round-trip on a throwaway database.
+
+## Alternatives considered
+
+- `pg_dump` plain SQL vs custom format (chose custom: selective restore,
+  smaller, `pg_restore` retry/error control).
+- An in-app admin backup endpoint (rejected: backups are an operator
+  action; a web endpoint adds attack surface and duplicate logic).
+- Off-machine/cloud backup (out of scope under D026; documented as a
+  manual copy step instead).
+
+## Status
+
+Accepted

@@ -4,6 +4,16 @@ Last updated: after Phase 23 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 26 — Backups & restoration (§51/§64/§102): **COMPLETE** 2026-10-02.
+Local `pg_dump`/`pg_restore` tooling (`pipeline/storage/backup.py` +
+`scripts/db_backup.py`: backup/list/restore/verify), custom-format dumps in
+`data/backups/` (Git-ignored), retention keeps the newest 7. A **real
+restoration test** was performed: the 241,842,655-byte full dump restored
+into a scratch database matched the live DB exactly — 27 tables,
+625,084 rows on both sides, Alembic revision `b8e5d1f2a3c4` identical, zero
+mismatches, scratch dropped. Documented in docs/backups.md (D028);
+`backend/tests/test_backup_tools.py` (7 tests) includes a real tiny
+pg_dump→pg_restore round-trip. Backend suite now 358 passed.
 Phase 25 — Performance pass (§101): **COMPLETE** 2026-10-02. Measured first
 with `scripts/phase25_perf_benchmark.py` at full volume (41,687 senses):
 cold semantic unique query ~450–680 ms (CPU query embedding dominates),
@@ -119,7 +129,7 @@ data/construction/phase12_full.log); HNSW index rebuilt over the
 complete corpus via --reigate (262s; D016 rule satisfied); semantic
 recall verified post-rebuild (bank top-5, 0.054s query). Resumable
 (--full --resume), safe to interrupt.
-Next: Phase 26 — Backups & restoration (local pg_dump/pg_restore, real restore test, per D026)
+Next: Phase 27 — Full end-to-end testing (§103, incl. the §59 acceptance workflow)
 
 ## Completed work
 Phase 13:
@@ -345,6 +355,9 @@ Phase 1:
 - None known.
 
 ## Known issues
+- Backups are local to the machine (no off-site copy); disaster recovery
+  requires manually copying `data/backups/*.dump` elsewhere (local-only
+  scope, D026/D028).
 - pgvector 0.8.6 installed 2026-09-27 from a community prebuilt
   (andreiramani/pgvector_pgsql_windows, MSVC-compiled for PG 17; D004
   addendum) after StackBuilder dropped pgvector from its catalog — the DLL
@@ -358,7 +371,7 @@ Phase 1:
 - Domain endpoints return 501 by design until their phase (see plan.md).
 
 ## Tests passed
-- Backend pytest: 351 passed (phase 23 adds test_security.py: 19 rate-limit/CSRF/origin/payload tests)
+- Backend pytest: 358 passed (phase 23: 19 security tests; phase 26: 7 backup/restore tests)
 - Phase 25 performance: `scripts/phase25_perf_benchmark.py` (full DB) —
   see plan.md/decision.md D027 and docs/search.md for the recorded table
 - Frontend vitest: 24 passed
@@ -368,14 +381,18 @@ Phase 1:
 ## Tests failed
 - None known.
 
-## Known issues
+## Database state
+- Backups: local `pg_dump` custom-format dumps in `data/backups/`
+  (Git-ignored), newest 7 retained; real restore verified 2026-10-02
+  (docs/backups.md, D028).
 - PostgreSQL 17.11 running as Windows service.
-- Database `vocab_platform` at Alembic head `c3d94a71b6e2` (priority
-  history PK; 27 tables incl. sense_embeddings).
+- Database `vocab_platform` at Alembic head `b8e5d1f2a3c4` (27 tables
+  incl. sense_embeddings).
 - Data: 41,687 vocabulary_senses (imported Phase 13, ids stable across
   re-imports), 83,374 sense_priorities (prio-v1 + prio-v1.1),
-  priority_* columns populated (prio-v1.1); sense_embeddings filling
-  via the detached Phase 12 run (checkpoint == stored rows).
+  priority_* columns populated (prio-v1.1); sense_embeddings complete
+  (41,690 vectors, HNSW rebuilt). Backup restore test confirmed 625,084
+  total rows across all 27 tables.
 - Extension `vector` 0.8.6 (pgvector) installed 2026-09-27 — verified via
   psql and the backend stack: round-trip, `<->` operators, HNSW index.
 - Migration roundtrip runs in disposable scratch DBs only (D015: the dev
@@ -402,9 +419,9 @@ Phase 1:
   a clean **local** reinstall/run, not a deployment.
 
 ## Next task
-Phase 26 — Backups & restoration: local PostgreSQL `pg_dump`/`pg_restore`
-scripts, retention, and a real restoration test, documented in
-docs/backups.md (D026 keeps this in scope; it is entirely local).
+Phase 27 — Full end-to-end testing (§103): run the complete suite and the
+end-to-end acceptance workflow (login → search → filter → assign → review
+→ FSRS → dashboard → import/export), plus the security and backup paths.
 
 ---
 

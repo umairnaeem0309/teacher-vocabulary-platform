@@ -620,7 +620,16 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
      (a >200 page size previously returned 422 and broke the table).
    - Gates: ruff/mypy clean, pytest 351 passed; frontend tsc/eslint clean,
      vitest 24/24, next build green.
-26. Backups & restoration (real restore test) — local pg_dump/pg_restore per D026
+26. Backups & restoration (real restore test) — COMPLETE 2026-10-02
+   - `pipeline/storage/backup.py` (backup/retention/restore/verify) +
+     `scripts/db_backup.py` CLI (`backup`/`list`/`restore`/`verify`).
+   - `pg_dump --format=custom` into `data/backups/` (Git-ignored), retain
+     newest 7 by default; `pg_restore --no-owner --no-privileges`.
+   - Real restoration test (§64/§102): 241,842,655-byte dump restored into
+     a scratch DB — 27 tables, 625,084 rows both sides, revision
+     `b8e5d1f2a3c4` identical, zero mismatches, scratch dropped.
+   - `backend/tests/test_backup_tools.py` (7 tests incl. a real tiny
+     pg_dump→pg_restore round-trip); `docs/backups.md`; D028.
 27. Full end-to-end testing (incl. section-59 acceptance workflow in Playwright)
 28. Local readiness (clean-environment verification; no deployment per D026)
 29. Final acceptance report (docs/final-acceptance-report.md)

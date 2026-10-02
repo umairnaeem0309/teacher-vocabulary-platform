@@ -1,9 +1,10 @@
 # Local Development Environment
 
 This document records how the development environment is actually set up on
-the primary development machine, and the canonical Docker-based alternative.
+the primary development machine. The project is local-only: the application
+runs natively on this machine with a native PostgreSQL 17 install.
 
-## Primary machine (Windows, no Docker)
+## Primary machine (Windows)
 
 - **PostgreSQL 17.11** installed natively via `winget install
   PostgreSQL.PostgreSQL.17` (EDB build). Runs as Windows service
@@ -17,16 +18,12 @@ the primary development machine, and the canonical Docker-based alternative.
   `postgresql+psycopg://postgres:<password>@localhost:5432/vocab_platform`
   (stored only in `.env`, which is Git-ignored).
 
-## Canonical alternative (Docker-capable environments)
+## Containers removed (2026-10-02, D026)
 
-`docker-compose.yml` at the repository root defines the intended services:
-
-- `db`: PostgreSQL 17 + pgvector image (pgvector/pgvector:pg17)
-- `backend`: FastAPI app (built from `backend/Dockerfile`, Phase 1+)
-- `frontend`: Next.js app (built from `frontend/Dockerfile`, Phase 1+)
-
-Docker could not be executed on the primary machine (not installed, no WSL);
-see decision.md D002 for the reasoning and D004 for pgvector handling.
+The original Docker/Compose scaffolding (`docker-compose.yml`,
+`backend/Dockerfile`, `frontend/Dockerfile`) was deleted: the product scope is
+a single local machine, Docker was never executable here (D002), and
+`requiremnts.txt` never requires containers. See decision.md D026.
 
 ## pgvector on this machine (D004)
 

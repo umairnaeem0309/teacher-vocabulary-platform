@@ -341,8 +341,10 @@ Phase 1:
   is an unsigned third-party build; acceptable for local development only.
   **Production (Phase 28) must replace it with a trusted build** (VS Build
   Tools source compile or a distribution that ships pgvector).
-- Docker is unavailable on this machine; docker-compose.yml exists for
-  Docker-capable environments but could not be executed here (D002).
+- Container/deployment scaffolding removed 2026-10-02: `docker-compose.yml`,
+  `backend/Dockerfile` and `frontend/Dockerfile` deleted. The project runs
+  natively on one local machine and `requiremnts.txt` never requires Docker
+  (D026). Historical D002 note is retained; the compose file is gone.
 - Domain endpoints return 501 by design until their phase (see plan.md).
 
 ## Tests passed
@@ -384,7 +386,8 @@ Phase 1:
 - Live since Phase 14 (see above).
 
 ## Deployment state
-- Development only. Deployment docs are a Phase 28 deliverable.
+- None and not required: local-only operation (D026). The final phase verifies
+  a clean **local** reinstall/run, not a deployment.
 
 ## Next task
 Phase 23 (plan-queue 24): Security hardening pass (§39/§40 checklist,

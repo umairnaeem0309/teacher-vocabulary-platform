@@ -16,7 +16,7 @@ Status: **COMPLETE**
 - [x] Create documentation files (master.md, decision.md, current-state.md, architecture.md, plan.md, README.md)
 - [x] Initialize backend (FastAPI, uv-managed)
 - [x] Initialize frontend (Next.js, pnpm-managed)
-- [x] Create docker-compose.yml (canonical dev-env config)
+- [x] Create docker-compose.yml (canonical dev-env config) — REMOVED 2026-10-02 with the Dockerfiles; see D026
 - [x] Create .env.example
 - [x] Create initial testing structure (pytest suite)
 - [x] Verify acceptance: repo starts, frontend builds, backend starts, database starts, health endpoint works, tests execute

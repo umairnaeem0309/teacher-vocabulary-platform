@@ -45,7 +45,7 @@ Docker Desktop (rejected: not installed; WSL missing), WSL2 PostgreSQL
 (rejected: WSL not installed).
 
 ## Status
-Accepted (environment-specific; Compose remains the canonical dev-env config)
+Accepted (environment-specific). **Superseded 2026-10-02 by D026**: the compose file was removed and the project is local-only.
 
 ---
 
@@ -1369,6 +1369,62 @@ Residual hardening was explicitly queued as phase 23.
   cheaply; token issuing can be layered later if a deployment needs it).
 - Trusting client-reported sizes before reading the body (rejected:
   Content-Length can lie; the cap must be enforced while streaming).
+
+## Status
+
+Accepted
+
+---
+
+# Decision D026
+
+## Date
+2026-10-02
+
+## Decision
+Scope is **local-only and single-machine**. Container/deployment
+scaffolding is removed, and the remaining phases are retargeted away
+from deployment:
+
+1. **Deleted**: `docker-compose.yml`, `backend/Dockerfile`,
+   `frontend/Dockerfile`. `requiremnts.txt` never mentions Docker or
+   containers, and Docker is not installed on this machine (D002), so
+   the files were dead weight.
+2. **Operation**: native PostgreSQL 17 on the host, backend via
+   `uvicorn`, frontend via `next dev`/`next build`. No cloud, no
+   orchestration, no reverse proxy, no deployment target.
+3. **Retargeted phases** (master_prompt.md sections 101–105):
+   - §104 "Phase 28 — Production readiness" → **local readiness**: a
+     clean-environment verification that the app installs, migrates and
+     runs on a fresh local machine, with local setup/run instructions
+     replacing "deployment instructions" (BRD §56).
+   - §105 final acceptance "deployment is documented" → replaced by
+     "local setup/operation is documented".
+4. **Retained** despite the local-only scope, because `requiremnts.txt`
+   requires them: backups + a real restoration test (BRD §51/§56, D027
+   when implemented) as **local `pg_dump`/`pg_restore` scripts**, and
+   PostgreSQL as the application database (BRD §47).
+
+## Reason
+
+`requiremnts.txt` is authoritative. It requires a working local,
+production-quality application, backups/restoration and setup
+instructions — none of which need containers or a deployed
+environment. Keeping Docker machinery that cannot run here and is
+never used would misrepresent the system and add maintenance surface.
+
+## Alternatives considered
+
+- Keeping the compose file as "optional" (rejected: it cannot run on
+  the target machine and nothing depends on it).
+- Dropping backups/restoration along with deployment (rejected: the
+  BRD explicitly requires a tested restoration; it works locally).
+
+## Supersedes
+
+D002's status ("Compose remains the canonical dev-env config") is now
+obsolete; D002's environment findings still hold. The compose file no
+longer exists.
 
 ## Status
 

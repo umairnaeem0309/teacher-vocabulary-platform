@@ -32,7 +32,7 @@ data/raw/   Immutable source datasets (Git-ignored; see data/raw/README.md)
 
 - Node 22+ and pnpm (`npm i -g pnpm`)
 - Python 3.12+ and [uv](https://docs.astral.sh/uv/)
-- PostgreSQL 17 (native, or Docker via the provided compose file)
+- PostgreSQL 17 (native install; this project runs entirely on one local machine)
 - pgvector (needed from Phase 12; see decision.md D004)
 
 ## Setup
@@ -45,13 +45,8 @@ cp .env.example .env   # adjust DATABASE_URL if your credentials differ
 
 ### 2. Database
 
-Either use Docker Compose (Docker-capable machines):
-
-```bash
-docker compose up -d db
-```
-
-…or a native PostgreSQL 17 instance:
+This project is local-only: it uses a native PostgreSQL 17 instance on the
+host machine (no containers, no deployment). See `docs/environment.md`.
 
 ```bash
 createdb -U postgres vocab_platform
@@ -76,6 +71,13 @@ cd frontend
 pnpm install
 pnpm dev                    # http://localhost:3000
 ```
+
+## Scope
+
+Local, single-machine operation only (native PostgreSQL 17, `uvicorn` and
+`next dev` on the host). There is no container, cloud or deployment target,
+and none is needed to satisfy `requiremnts.txt` (it never mentions Docker).
+See decision.md D026.
 
 ## Development status
 

@@ -77,8 +77,9 @@ backend/
 
 ## Database Architecture (Phase 2: core schema)
 
-- PostgreSQL 17, native install on this machine (D002); docker-compose.yml
-  provides the canonical service definition for Docker-capable environments.
+- PostgreSQL 17, native install on this machine (D002). The project is
+  local-only: container scaffolding (compose + Dockerfiles) was removed
+  2026-10-02 (D026) — no deployment target exists or is required.
 - Alembic migrations; deterministic constraint names via naming convention.
 - 25 tables in three groups:
   - **identity**: teachers, teacher_sessions, students

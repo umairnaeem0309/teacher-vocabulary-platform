@@ -187,10 +187,18 @@ def _apply_filters(
         params["plevels"] = f.priority_levels
 
     if f.priority_min is not None:
-        if f.priority_min not in PRIORITY_LEVELS:
+        # Teacher-facing labels carry a "+" suffix ("HIGH+", sections 22/25)
+        # while the stored levels do not — accept both spellings so the
+        # documented API example does not 500 (Phase 27 acceptance run).
+        level = (
+            f.priority_min[:-1]
+            if f.priority_min.endswith("+")
+            else f.priority_min
+        )
+        if level not in PRIORITY_LEVELS:
             raise ValueError(f"unknown priority level: {f.priority_min}")
         where.append(_PRIORITY_MIN_SQL)
-        params["pmin"] = f.priority_min
+        params["pmin"] = level
 
     if f.category_key is not None:
         # The category itself plus every descendant (recursive).

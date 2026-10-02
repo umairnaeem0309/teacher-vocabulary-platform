@@ -21,7 +21,25 @@ export interface SearchFilters {
   student_id: string | null;
   /** true = assigned to that student, false = not assigned (§30). */
   assigned: boolean | null;
+  /** §19: learning-state filter (requires student_id). */
+  learning_states: string[];
+  /** §19/§59: due_at <= now (requires student_id). */
+  due_only: boolean | null;
+  /** §19: lapsed cards (requires student_id). */
+  difficult_only: boolean | null;
+  /** §19: senses carrying a teacher priority override. */
+  teacher_priority_only: boolean | null;
 }
+
+/** Conceptual learning states from §30. */
+export const LEARNING_STATES = [
+  "NEW",
+  "ASSIGNED",
+  "ENCOUNTERED",
+  "LEARNING",
+  "REVIEWING",
+  "MASTERED",
+] as const;
 
 export const EMPTY_FILTERS: SearchFilters = {
   cefr: [],
@@ -34,6 +52,10 @@ export const EMPTY_FILTERS: SearchFilters = {
   flags: [],
   student_id: null,
   assigned: null,
+  learning_states: [],
+  due_only: null,
+  difficult_only: null,
+  teacher_priority_only: null,
 };
 
 export interface SearchHit {

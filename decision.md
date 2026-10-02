@@ -1538,3 +1538,53 @@ round-trip on a throwaway database.
 ## Status
 
 Accepted
+
+---
+
+# Decision D029 (2026-10-03): End-to-end test harness
+
+Phase 27 (§59/§60/§61/§103) runs the acceptance workflows as automated
+Playwright tests in system Chrome. The harness choices:
+
+1. **The suite owns its servers.** `frontend/playwright.config.ts` starts
+   uvicorn on :8737 (reused when already healthy) but **always restarts**
+   the frontend (`pnpm dev`, `reuseExistingServer: false`): a leftover
+   `next start` production build has `NEXT_PUBLIC_API_URL` baked in at
+   build time, silently points at a dead port, and would poison every run.
+2. **Page and API must be same-site.** The dev page origin is
+   `http://localhost:3000`, so every E2E URL uses `localhost`, not
+   `127.0.0.1`. With mixed hosts the fetch is cross-site and the
+   `SameSite=Lax` session cookie is never attached — every authenticated
+   call 401s while public endpoints keep working (a confusing failure the
+   suite hit and documented).
+3. **One seed-minted session, one real login.** The rate limiter (§39:
+   10 logins / 5 min / IP) is left enabled — tests run against real
+   configuration. `scripts/phase27_seed_acceptance.py` therefore also
+   mints the suite's session token and the global setup publishes it as
+   Playwright storage state; only §59's explicit "login as teacher"
+   step performs an HTTP login. Without this, the suite's own logins
+   would throttle quick re-runs.
+4. **Real fixtures, not synthetic rows.** §61 asserts retrieval over the
+   full 41,687-sense corpus; §60 discovers the two BANK senses by their
+   real definitions. Synthetic vocabulary would prove nothing about the
+   production search path.
+5. **Serial execution, count-as-contract.** `workers: 1` (one teacher
+   account, one database). §60 drives discovery through the real UI and
+   asserts the §29 invariant against API record counts — the record count
+   is the contract, the discovery path must not change it.
+
+## Alternatives considered
+
+- Disabling rate limiting for E2E (rejected: tests should exercise the
+  real configuration; a shared seed session solves it honestly).
+- API-only acceptance tests (rejected: §59 explicitly requires driving
+  the UI; UI + API assertions are mixed only where the count, not the
+  click path, is under test).
+- Synthetic minimal fixtures (rejected: §61 exists to prove semantic
+  retrieval over representative data).
+- `127.0.0.1` for both tiers (equally same-site, but the project's dev
+  origin convention is `localhost`; one host everywhere avoids the trap).
+
+## Status
+
+Accepted

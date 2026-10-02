@@ -630,7 +630,44 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
      `b8e5d1f2a3c4` identical, zero mismatches, scratch dropped.
    - `backend/tests/test_backup_tools.py` (7 tests incl. a real tiny
      pg_dump→pg_restore round-trip); `docs/backups.md`; D028.
-27. Full end-to-end testing (incl. section-59 acceptance workflow in Playwright)
+27. Full end-to-end testing (incl. section-59 acceptance workflow in Playwright) — COMPLETE 2026-10-03
+   - Playwright harness (`frontend/playwright.config.ts`, testDir `e2e/`):
+     system Chrome, workers=1, webServer starts/reuses uvicorn :8737 and
+     always (re)starts `pnpm dev` :3000 with `NEXT_PUBLIC_API_URL` set —
+     a stale `next start` build must never be reused (D029).
+   - Global setup reruns `scripts/phase27_seed_acceptance.py` (idempotent:
+     acceptance teacher, student John with 6 genuinely overdue FSRS cards)
+     and writes `e2e/storage-state.json` from a seed-minted session, so
+     only §59 spends a real HTTP login (stays under the §39 limit).
+   - `e2e/acceptance.spec.ts`: §59 all 22 steps through the real UI
+     (login → semantic "vacation" → TRAVEL/A2/HIGH+ → John → NOT ASSIGNED
+     → multi-select → assign report → profile → DUE → review → EASY →
+     "Recorded EASY — next due" → fresh dashboard reflects the new FSRS
+     state) + §53 responsive checks at 1440/1280/768 (no horizontal
+     overflow).
+   - `e2e/duplicates.spec.ts` (§60): BANK — financial institution assigned
+     through all five paths (search, topic, semantic, set, CEFR) always
+     yields exactly one student record; bank — river then yields two
+     distinct senses/records.
+   - `e2e/semantic-search.spec.ts` (§61): the six §21 example queries
+     return relevant top hits from the real 41.7k-sense corpus, and
+     semantic + A2 + HIGH+ + student + NOT ASSIGNED compose server-side.
+   - Bug found & fixed: engine rejected `priority_min="HIGH+"` (the API's
+     own documented example; the UI sends the bare level) → 500; now both
+     spellings normalize (regression test added).
+   - Bug found & fixed: back-navigation restored the cached student
+     profile without refetching, so due/overdue/recent-review counts went
+     stale after a review; the review mutation now invalidates the
+     `students` query keys.
+   - New §19 filter controls finished & wired (learning states, due,
+     difficult, teacher priority in `FilterPanel` + URL params) and
+     `/students/[studentId]/vocabulary` became a real filterable page
+     (§53 route, §59 step 14).
+   - Gates: ruff/mypy clean, pytest **359 passed**; tsc/eslint clean,
+     vitest **26/26**, next build green; Playwright **7/7 passed** (1.9m).
+   - Docs: docs/e2e.md, D029 in decision.md, current-state.md,
+     architecture.md testing section.
+   - Commit `test: end-to-end acceptance suite (phase 27)` (plain, D021).
 28. Local readiness (clean-environment verification; no deployment per D026)
 29. Final acceptance report (docs/final-acceptance-report.md)
 

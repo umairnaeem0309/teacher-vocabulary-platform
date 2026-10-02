@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type { FilterFacets, SearchFilters } from "@/lib/search-types";
+import { LEARNING_STATES } from "@/lib/search-types";
 import { listStudents } from "@/lib/students-client";
 
 interface FilterPanelProps {
@@ -130,6 +131,62 @@ export function FilterPanel({ facets, filters, onChange }: FilterPanelProps) {
             not assigned
           </label>
         </div>
+
+        {/* §19: learning state, due, difficult and teacher-priority filters
+            (all scoped to the selected student, matching the SQL). */}
+        <div className="mt-3 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+            Learning state
+          </p>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {LEARNING_STATES.map((s) => (
+              <label key={s} className="flex items-center gap-1 text-sm">
+                <input
+                  type="checkbox"
+                  checked={filters.learning_states.includes(s)}
+                  disabled={filters.student_id === null}
+                  onChange={() =>
+                    set("learning_states", toggle(filters.learning_states, s))
+                  }
+                />
+                {s}
+              </label>
+            ))}
+          </div>
+          <div className="flex flex-col gap-1 text-sm">
+            <label className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={filters.due_only === true}
+                disabled={filters.student_id === null}
+                onChange={() => set("due_only", filters.due_only ? null : true)}
+              />
+              due now
+            </label>
+            <label className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={filters.difficult_only === true}
+                disabled={filters.student_id === null}
+                onChange={() =>
+                  set("difficult_only", filters.difficult_only ? null : true)
+                }
+              />
+              difficult (lapsed)
+            </label>
+            <label className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={filters.teacher_priority_only === true}
+                disabled={filters.student_id === null}
+                onChange={() =>
+                  set("teacher_priority_only", filters.teacher_priority_only ? null : true)
+                }
+              />
+              teacher priority
+            </label>
+          </div>
+        </div>
       </details>
 
       <details className="border-b border-neutral-200 pb-2">
@@ -202,6 +259,10 @@ export function FilterPanel({ facets, filters, onChange }: FilterPanelProps) {
             flags: [],
             student_id: null,
             assigned: null,
+            learning_states: [],
+            due_only: null,
+            difficult_only: null,
+            teacher_priority_only: null,
           })
         }
       >

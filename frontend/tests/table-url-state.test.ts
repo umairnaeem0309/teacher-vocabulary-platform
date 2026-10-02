@@ -28,6 +28,10 @@ describe("stateToParams / paramsToState", () => {
         flags: ["rare", "british"],
         student_id: "7a0e9a10-0000-4000-8000-000000000001",
         assigned: false,
+        learning_states: ["LEARNING", "REVIEWING"],
+        due_only: true,
+        difficult_only: true,
+        teacher_priority_only: true,
       },
       page: 3,
       pageSize: 100,
@@ -64,5 +68,25 @@ describe("stateToParams / paramsToState", () => {
   it("trims lists and drops empty tokens", () => {
     const state = paramsToState(new URLSearchParams("cefr= A2 ,, B1 ,"));
     expect(state.filters.cefr).toEqual(["A2", "B1"]);
+  });
+
+  it("parses §19 student-scope list and flag params", () => {
+    const state = paramsToState(
+      new URLSearchParams(
+        "learning_states=LEARNING,REVIEWING&due=yes&difficult=yes&tprio=yes",
+      ),
+    );
+    expect(state.filters.learning_states).toEqual(["LEARNING", "REVIEWING"]);
+    expect(state.filters.due_only).toBe(true);
+    expect(state.filters.difficult_only).toBe(true);
+    expect(state.filters.teacher_priority_only).toBe(true);
+  });
+
+  it("leaves §19 flags unset when the params are absent", () => {
+    const state = paramsToState(new URLSearchParams());
+    expect(state.filters.learning_states).toEqual([]);
+    expect(state.filters.due_only).toBeNull();
+    expect(state.filters.difficult_only).toBeNull();
+    expect(state.filters.teacher_priority_only).toBeNull();
   });
 });

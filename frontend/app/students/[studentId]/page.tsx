@@ -227,9 +227,17 @@ export default function StudentProfilePage({
           </section>
 
           <section className="mt-8">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              Assigned vocabulary ({vocabulary.data?.total ?? 0})
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Assigned vocabulary ({vocabulary.data?.total ?? 0})
+              </h2>
+              <Link
+                href={ROUTES.studentVocabulary(studentId)}
+                className="text-xs underline"
+              >
+                Filter vocabulary →
+              </Link>
+            </div>
             <table className="mt-2 w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-neutral-300 text-left">

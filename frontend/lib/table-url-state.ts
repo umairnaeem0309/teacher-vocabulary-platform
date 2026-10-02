@@ -28,7 +28,14 @@ export const DEFAULT_TABLE_STATE: TableState = {
   pageSize: DEFAULT_PAGE_SIZE,
 };
 
-const LIST_PARAMS = ["cefr", "pos", "priority_levels", "frequency_bands", "flags"] as const;
+const LIST_PARAMS = ["cefr", "pos", "priority_levels", "frequency_bands", "flags", "learning_states"] as const;
+
+/** boolean|null filters stored as "yes" when on (absent = unset). */
+const FLAG_PARAMS = {
+  due_only: "due",
+  difficult_only: "difficult",
+  teacher_priority_only: "tprio",
+} as const;
 
 export function stateToParams(state: TableState): URLSearchParams {
   const p = new URLSearchParams();
@@ -44,6 +51,11 @@ export function stateToParams(state: TableState): URLSearchParams {
   if (f.max_frequency_rank !== null) p.set("maxrank", String(f.max_frequency_rank));
   if (f.student_id) p.set("student", f.student_id);
   if (f.assigned !== null) p.set("assigned", f.assigned ? "yes" : "no");
+  if (f.due_only === true) p.set(FLAG_PARAMS.due_only, "yes");
+  if (f.difficult_only === true) p.set(FLAG_PARAMS.difficult_only, "yes");
+  if (f.teacher_priority_only === true) {
+    p.set(FLAG_PARAMS.teacher_priority_only, "yes");
+  }
   if (state.page !== 0) p.set("page", String(state.page));
   if (state.pageSize !== DEFAULT_PAGE_SIZE) p.set("size", String(state.pageSize));
   return p;
@@ -57,11 +69,15 @@ export function paramsToState(params: URLSearchParams): TableState {
     priority_levels: parseList(params.get("priority_levels")),
     frequency_bands: parseList(params.get("frequency_bands")),
     flags: parseList(params.get("flags")),
+    learning_states: parseList(params.get("learning_states")),
     priority_min: params.get("pmin"),
     category_key: params.get("cat"),
     max_frequency_rank: parseNullableInt(params.get("maxrank")),
     student_id: params.get("student"),
     assigned: parseAssigned(params.get("assigned")),
+    due_only: parseFlag(params.get("due")),
+    difficult_only: parseFlag(params.get("difficult")),
+    teacher_priority_only: parseFlag(params.get("tprio")),
   };
   const rawPage = parseNonNegativeInt(params.get("page"));
   return {
@@ -96,6 +112,10 @@ function parseAssigned(value: string | null): boolean | null {
   if (value === "yes") return true;
   if (value === "no") return false;
   return null;
+}
+
+function parseFlag(value: string | null): boolean | null {
+  return value === "yes" ? true : null;
 }
 
 function parseMode(value: string | null): SearchMode {

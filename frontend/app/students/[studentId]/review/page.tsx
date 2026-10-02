@@ -53,6 +53,12 @@ export default function ReviewPage({
       // Refetch in the background; keep showing the current card until we
       // advance, so a slow network never reveals the answer early.
       queryClient.invalidateQueries({ queryKey: ["reviews", "due", studentId] });
+      // The student dashboard (counts, due/overdue, recent reviews) is
+      // derived from review history — invalidate it too so returning to
+      // the profile immediately reflects the new FSRS state (§59 steps
+      // 21-22); back-navigation restores the cached page without
+      // refetching, so the invalidation has to be recorded here.
+      queryClient.invalidateQueries({ queryKey: ["students"] });
       if (index + 1 >= items.length) {
         setDone(true);
       } else {

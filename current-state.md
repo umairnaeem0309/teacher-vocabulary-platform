@@ -1,9 +1,32 @@
 # Current State
 
-Last updated: after Phase 23 (see plan.md for phase list)
+Last updated: after Phase 27 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 27 — Full end-to-end testing (§58/§59/§60/§61/§103): **COMPLETE**
+2026-10-03. Playwright suite (`frontend/e2e/`, 7 tests, all green in
+~2 min against the real Chrome + dev stack): the §59 critical acceptance
+workflow end-to-end (all 22 steps incl. semantic search, filters,
+assignment report, DUE filter, review → EASY → FSRS next date → updated
+dashboard), §53 responsive checks at 1440/1280/768, §60 duplicate
+acceptance (BANK financial institution assigned through search/topic/
+semantic/set/CEFR stays exactly one student record; river BANK adds a
+second distinct sense), and §61 semantic acceptance (the six §21 example
+queries return relevant hits over the real 41.7k-sense corpus;
+semantic+CEFR+priority+student+not-assigned compose server-side).
+Harness: `playwright.config.ts` (system Chrome, workers=1, webServer for
+both tiers), global setup reseeds fixtures via
+`scripts/phase27_seed_acceptance.py` and shares a seed-minted session via
+`e2e/storage-state.json` so each run spends exactly one real login (D029).
+Two bugs found and fixed by the suite: `priority_min="HIGH+"` 500 in the
+search engine (now normalized, regression-tested) and stale profile
+dashboard counts after back-navigation from a review (review now
+invalidates `students` queries). The §19 student-scope filter controls
+(learning states/due/difficult/teacher priority) and the
+`/students/[studentId]/vocabulary` page (§53 route) are implemented and
+covered. Gates: ruff/mypy clean, pytest **359 passed**; tsc/eslint clean,
+vitest **26/26**, next build green; Playwright **7/7**.
 Phase 26 — Backups & restoration (§51/§64/§102): **COMPLETE** 2026-10-02.
 Local `pg_dump`/`pg_restore` tooling (`pipeline/storage/backup.py` +
 `scripts/db_backup.py`: backup/list/restore/verify), custom-format dumps in

@@ -42,6 +42,10 @@ flowchart LR
 - Styling is plain Tailwind CSS; no component library yet (shadcn/ui
   deferred until a real screen set justifies the dependency).
 - Vitest for unit tests (`pnpm exec vitest run`).
+- Playwright end-to-end acceptance suite (`pnpm exec playwright test`,
+  `e2e/`): the §59 critical workflow, §60 duplicate and §61 semantic
+  acceptance tests plus §53 responsive checks, driven in real Chrome
+  against the dev stack — see docs/e2e.md.
 
 ## Backend Architecture (Phase 1: core foundation)
 
@@ -64,7 +68,7 @@ backend/
         health.py        # real health endpoints
         auth|students|vocabulary|search|sets|assignments|reviews|fsrs|imports|exports|admin.py
     db/session.py        # SQLAlchemy 2 engine + session factory (psycopg3)
-  tests/                 # pytest suite (27 tests)
+  tests/                 # pytest suite (359 tests)
 ```
 
 - Sync SQLAlchemy engine (D003) — simple, Alembic-friendly.

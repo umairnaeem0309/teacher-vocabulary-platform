@@ -76,6 +76,40 @@ class TestBrowse:
             assert hit["cefr_level"] == "A2"
             assert hit["priority_level"] in _priority_min_set("HIGH")
 
+    def test_priority_min_accepts_teacher_label(self) -> None:
+        """"HIGH+" — the §22 teacher-facing label and the documented API
+        example — must behave exactly like the stored level "HIGH".
+        (Phase 27 acceptance run: the suffixed form raised inside the
+        engine and surfaced as a 500.)"""
+        c = _client()
+        params = {"sort": "priority", "cefr": "A2", "limit": 10}
+        suffixed = c.get(
+            "/api/v1/vocabulary", params={**params, "priority_min": "HIGH+"}
+        )
+        assert suffixed.status_code == 200
+        plain = c.get(
+            "/api/v1/vocabulary", params={**params, "priority_min": "HIGH"}
+        )
+        assert suffixed.json() == plain.json()
+        for hit in suffixed.json()["hits"]:
+            assert hit["priority_level"] in _priority_min_set("HIGH")
+        # Same contract through POST /vocabulary/search (semantic mode is
+        # the path the §61 combined-filter acceptance test exercises).
+        post = c.post(
+            "/api/v1/vocabulary/search",
+            json={
+                "query": "vacation",
+                "mode": "semantic",
+                "sort": "relevance",
+                "limit": 10,
+                "filters": {"cefr": ["A2"], "priority_min": "HIGH+"},
+            },
+        )
+        assert post.status_code == 200
+        for hit in post.json()["hits"]:
+            assert hit["cefr_level"] == "A2"
+            assert hit["priority_level"] in _priority_min_set("HIGH")
+
     def test_browse_coerces_bad_sort_like_post(self) -> None:
         """The engine's documented contract coerces unknown sorts to
         relevance (then, query-less, to a deterministic priority browse);

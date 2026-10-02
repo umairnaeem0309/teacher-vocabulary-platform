@@ -1307,3 +1307,69 @@ safeguards.
 ## Status
 
 Accepted
+
+---
+
+# Decision D025
+
+**Phase 23 — Security hardening: rate limiting, CSRF origin check, secret guard, safe file handling (section 39/40)**
+
+## Context
+
+§39 asks for secure handling of credentials/secrets, safe file
+handling and a security checklist; §40 requires that protected data is
+never reachable without the owning teacher. Phase 22 added a multipart
+import endpoint that read whole uploads with no size cap, and the API
+had no per-client request limiting or browser-CSRF posture beyond CORS.
+Residual hardening was explicitly queued as phase 23.
+
+## Decision
+
+1. **Rate limiting: in-process, per client IP, per route class.**
+   `app/core/ratelimit.py` implements a fixed-window `RateLimiter`;
+   `RateLimitMiddleware` maps each request to a class and budget:
+   login/bootstrap 10/300s, upload 20/300s, reads (GET non-upload)
+   240/60s, writes 120/60s. Rejections return 429 with the uniform
+   envelope, `Retry-After` and `X-RateLimit-Limit`. A window counter is
+   never reset by a higher count mid-window, and `max_requests <= 0`
+   disables a class (used by tests). Limits come from settings, so
+   they are tunable per deployment without code changes.
+2. **CSRF: Origin check on browser mutating requests.**
+   `OriginCheckMiddleware` returns 403 when a POST/PUT/PATCH/DELETE
+   carries an `Origin` (or `Referer`) that is not in
+   `ALLOWED_REQUEST_ORIGINS`. GET/OPTIONS are exempt; requests without
+   an Origin are treated as non-browser clients (curl, server-to-server)
+   and allowed. This is defense-in-depth against cross-site requests
+   that would otherwise ride on the session cookie's SameSite=Lax —
+   SameSite remains the primary control.
+3. **Credentials: fail fast on the placeholder secret.** The single
+   `SESSION_SECRET` placeholder (`change-me-in-later-phases`) is
+   rejected by a `Settings` model validator at startup when `APP_ENV`
+   is production/staging. Secrets stay environment-only (never in
+   code), and `.env.example` documents every security variable.
+4. **Safe file handling: hard byte cap before materializing.**
+   `imports.py::_capped_read` enforces `UPLOAD_MAX_BYTES` (default
+   5 MiB) on import uploads; oversized bodies raise
+   `PayloadTooLargeError` -> 413 `payload_too_large`. This sits under
+   the existing 10,000-row import cap (phase 22).
+5. **Secure response headers.** `SecurityHeadersMiddleware` sets
+   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and
+   `Referrer-Policy: no-referrer` on every response.
+6. **Middleware order is deliberate:** correlation ID (outermost, so
+   every response — including early 403/429 — carries `X-Request-ID`),
+   then security headers, rate limit, origin check, then CORS and the
+   routers.
+
+## Alternatives considered
+
+- External rate-limit store (Redis) (rejected for now: single-process
+  dev/small deployment; the limiter interface is small enough to swap).
+- Double-submit CSRF tokens on every mutating endpoint (rejected as
+  the first step: SameSite=Lax + Origin check covers the browser threat
+  cheaply; token issuing can be layered later if a deployment needs it).
+- Trusting client-reported sizes before reading the body (rejected:
+  Content-Length can lie; the cap must be enforced while streaming).
+
+## Status
+
+Accepted

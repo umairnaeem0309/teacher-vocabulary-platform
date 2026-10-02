@@ -408,11 +408,19 @@ Students have no credentials.
 
 ## Security
 
-Secrets via environment (`.env.example` documents all variables; real `.env`
-Git-ignored), no secrets in code. Error responses never leak stack traces,
-paths or internals (enforced by handlers + tests). CORS restricted to the
-configured browser origins; credentials allowed for future session cookies.
-Full hardening pass in Phase 24.
+Owns the phase-23 controls (§39/§40 checklist): per-client-IP sliding-window
+rate limiting (`backend/app/core/ratelimit.py`, `RateLimitMiddleware`),
+cross-origin origin check on browser mutating requests (403; GET/OPTIONS
+exempt; origin-less = non-browser curl clients allowed), secure headers
+(X-Content-Type-Options, X-Frame-Options, Referrer-Policy), and
+`_capped_read` on `POST /imports/vocabulary*` (oversized → 413
+`payload_too_large`). `SESSION_SECRET` placeholder is rejected at startup in
+production/staging (`backend/app/core/settings.py` model validator). Stack
+order in `create_app`: correlation → security headers → rate limit → origin
+check, then CORS. 19 tests in `backend/tests/test_security.py`; gates
+clean (ruff/mypy), pytest 351 passed, tsc/vitest/lint/next build green.
+
+## Deployment
 
 ## Deployment
 

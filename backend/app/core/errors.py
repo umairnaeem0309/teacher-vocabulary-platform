@@ -77,6 +77,23 @@ class AuthorizationError(AppError):
     message = "You do not have access to this resource."
 
 
+class RateLimitError(AppError):
+    """Too many requests from this client in the current window (§39)."""
+
+    status_code = HTTPStatus.TOO_MANY_REQUESTS
+    code = "rate_limited"
+    message = "Too many requests; slow down and try again soon."
+
+
+class PayloadTooLargeError(AppError):
+    """An uploaded file exceeds the configured size cap (§39 safe file
+    handling)."""
+
+    status_code = HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+    code = "payload_too_large"
+    message = "The uploaded file is too large."
+
+
 def error_envelope(
     *,
     code: str,

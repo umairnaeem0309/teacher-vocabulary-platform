@@ -20,6 +20,18 @@ def new_request_id() -> str:
     return value
 
 
+def adopt_request_id(value: str) -> str:
+    """Adopt an externally-chosen correlation ID into the context.
+
+    Phase 23: security-middleware rejections can short-circuit before any
+    handler runs; the rejection path calls this so its error envelope
+    still carries a correlation ID that matches the access log and the
+    ``X-Request-ID`` response header.
+    """
+    _request_id.set(value)
+    return value
+
+
 def get_request_id() -> str:
     """Return the current correlation ID (empty string outside a request)."""
     return _request_id.get()

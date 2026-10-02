@@ -598,7 +598,15 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
 21. Review interface (one-at-a-time, keyboard shortcuts, duplicate-submission guard) — COMPLETE in Phase 20 above
 22. Dashboard (per-student due/overdue/learning/reviewing/mastered) — COMPLETE as Phase 21 above
 23. Import/export (CSV/XLSX/JSON, validated import) — COMPLETE as Phase 22 above
-24. Security hardening pass
+24. Security hardening pass — COMPLETE 2026-10-02
+   - Rate limiting: per-client-IP fixed window, route-class budgets (login 10/300s · upload 20/300s · read 240/60s · write 120/60s); `max_requests <= 0` disables a class; never resets on higher counts.
+   - CSRF: 403 on cross-origin browser mutating requests when origins are configured (GET/OPTIONS exempt; origin-less = non-browser curl clients allowed).
+   - Credentials: `SESSION_SECRET` must not be the placeholder `change-me-in-later-phases` in production/staging — startup error (D025).
+   - Safe file handling: `_capped_read` enforces `upload_max_bytes` before import bodies fully materialize; oversized → 413 (`PayloadTooLargeError`).
+   - Secure headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy).
+   - 19 new tests in `backend/tests/test_security.py`; gates: ruff/mypy clean, pytest 351 passed, tsc/vitest/lint/next build green, live curl verified (cross-origin POST → 403, same-origin → 401, origin-less → 401, 12 rapid logins → 401+429, envelope carries request_id).
+   - Docs: D025 in decision.md, current-state.md + architecture.md Security section, `.env.example` SECURITY block.
+   - Commit `feat/security: security hardening pass (phase 23)` (plain git commit, per D021).
 25. Performance pass (realistic volume)
 26. Backups & restoration (real restore test)
 27. Full end-to-end testing (incl. section-59 acceptance workflow in Playwright)

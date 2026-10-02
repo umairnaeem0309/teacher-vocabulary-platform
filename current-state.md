@@ -1,9 +1,18 @@
 # Current State
 
-Last updated: after Phase 22 (see plan.md for phase list)
+Last updated: after Phase 23 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 23 — Security hardening (§39/§40): **COMPLETE** 2026-10-02.
+Per-client-IP sliding-window rate limiting (login 10/300s · upload 20/300s
+· read 240/60s · write 120/60s; `max_requests <= 0` disables a route
+class), CSRF-origin 403 on browser mutating requests, secure headers
+(X-Content-Type-Options, X-Frame-Options, Referrer-Policy), and
+`_capped_read` on import uploads (oversized → 413 `payload_too_large`).
+`SESSION_SECRET` placeholder is rejected at startup in production/staging.
+19 new tests (test_security.py); gates green (ruff/mypy; pytest 351;
+tsc/vitest/lint/build). Live curl checks verified.
 Phase 22 — Import/export (§38/§99): **COMPLETE**. Master-vocabulary
 file export (CSV/XLSX/JSON, stable 10-column schema) selected by the
 same engine filters as the workbench, student-viewpoint filters
@@ -97,10 +106,10 @@ priority history + denormalized current-priority columns populated.
 Phase 12 — Embeddings: **COMPLETE**. Full 41,690-sense generation
 finished 2026-09-29 (batch 1303/1303, log
 data/construction/phase12_full.log); HNSW index rebuilt over the
-complete corpus via --reindex (262s; D016 rule satisfied); semantic
+complete corpus via --reigate (262s; D016 rule satisfied); semantic
 recall verified post-rebuild (bank top-5, 0.054s query). Resumable
 (--full --resume), safe to interrupt.
-Next: Phase 17 — Students (list/create/edit/deactivate/profile)
+Next: Phase 25 — Performance pass (realistic volume)
 
 ## Completed work
 Phase 13:
@@ -336,7 +345,16 @@ Phase 1:
   Docker-capable environments but could not be executed here (D002).
 - Domain endpoints return 501 by design until their phase (see plan.md).
 
-## Database state
+## Tests passed
+- Backend pytest: 351 passed (phase 23 adds test_security.py: 19 rate-limit/CSRF/origin/payload tests)
+- Frontend vitest: 24 passed
+- Quality gates: ruff clean, mypy clean, tsc clean, eslint clean, `next build` passes
+- Live HTTP smoke: secure headers present; cross-origin POST → 403; same-origin → 401; origin-less → 401; 12 rapid logins → 401×5 + 429×4; envelopes carry `X-Request-ID` + `request_id`.
+
+## Tests failed
+- None known.
+
+## Known issues
 - PostgreSQL 17.11 running as Windows service.
 - Database `vocab_platform` at Alembic head `c3d94a71b6e2` (priority
   history PK; 27 tables incl. sense_embeddings).

@@ -9,6 +9,7 @@ dropped afterwards. Tests skip when PostgreSQL is unreachable (conftest).
 """
 
 import uuid
+from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
@@ -141,7 +142,15 @@ class TestMigrationRoundTrip:
                 conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
                 conn.commit()
 
-            alembic_cfg = Config("alembic.ini")
+            alembic_cfg = Config()
+            # Point Alembic at the migrations directory (required even when
+            # the URL is supplied programmatically). The entry is relative to
+            # alembic.ini's own directory, so resolve an absolute path up
+            # front.
+            alembic_cfg.set_main_option(
+                "script_location",
+                str(Path(__file__).resolve().parents[1] / "migrations"),
+            )
             # Programmatic override -> env.py targets the scratch DB only.
             # NOTE: pass the URL object, not str() — str() masks the password.
             alembic_cfg.attributes["sqlalchemy_url"] = engine.url

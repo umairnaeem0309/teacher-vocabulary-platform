@@ -8,7 +8,7 @@ deployment must fail loudly here instead of mysteriously at request time.
 from functools import lru_cache
 from urllib.parse import urlparse
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,6 +38,25 @@ class Settings(BaseSettings):
 
     # --- HTTP ---
     cors_origins: str = "http://localhost:3000"
+
+    # --- Security hardening (phase 23, section 39) ---
+    #: Comma-separated list of origins allowed to make state-changing
+    #: (browser) requests. Empty disables the Origin check entirely (pure
+    #: non-browser API clients; not recommended when cookies are used).
+    allowed_request_origins: str = "http://localhost:3000"
+    #: Sliding-window rate limiting (per client IP + route class). Zero or
+    #: negative disables limiting entirely.
+    rate_limit_enabled: bool = True
+    rate_limit_login_max: int = 10
+    rate_limit_auth_window_seconds: int = 300
+    rate_limit_read_max: int = 240
+    rate_limit_read_window_seconds: int = 60
+    rate_limit_write_max: int = 120
+    rate_limit_write_window_seconds: int = 60
+    rate_limit_upload_max: int = 20
+    rate_limit_upload_window_seconds: int = 300
+    #: Hard cap on uploaded import-file size (§39 safe file handling).
+    upload_max_bytes: int = 5_242_880  # 5 MiB
 
     # --- Auth placeholder (used from Phase 15) ---
     session_secret: str = "change-me-in-later-phases"
@@ -82,6 +101,19 @@ class Settings(BaseSettings):
             raise SettingsError(f"LOG_LEVEL must be one of {sorted(allowed)}")
         return value.upper()
 
+    @model_validator(mode="after")
+    def _production_requires_secret(self) -> "Settings":
+        """A placeholder session secret must never reach production (§39
+        secret management): fail loudly at startup, not at incident time."""
+        if self.app_env in ("production", "staging") and self.session_secret == (
+            "change-me-in-later-phases"
+        ):
+            raise SettingsError(
+                "SESSION_SECRET must be set to a strong random value "
+                "when APP_ENV is production or staging."
+            )
+        return self
+
     @field_validator("log_format")
     @classmethod
     def _validate_log_format(cls, value: str) -> str:
@@ -94,6 +126,12 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         """CORS origins as a list (comma-separated env value)."""
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def allowed_request_origin_list(self) -> list[str]:
+        """Origins allowed to make state-changing requests (CSRF defense,
+        phase 23). Empty disables the Origin check entirely."""
+        return [o.strip() for o in self.allowed_request_origins.split(",") if o.strip()]
 
 
 @lru_cache

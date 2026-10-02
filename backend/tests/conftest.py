@@ -40,7 +40,16 @@ requires_db = pytest.mark.skipif(
 
 @pytest.fixture(name="client")
 def client_fixture() -> TestClient:
-    """Test client bound to the app with settings suitable for tests."""
+    """Test client bound to the app with settings suitable for tests.
+
+    Rate limiting is disabled: the suite is one very chatty "client IP"
+    and phase 23 budgets (120 writes / 60 s) would otherwise break
+    unrelated endpoint tests. Security tests re-enable limiting
+    explicitly via app.state.settings overrides (tests/test_security.py).
+    """
+    from app.core.settings import Settings
+
+    app.state.settings = Settings(app_env="test", rate_limit_enabled=False)
     return TestClient(app)
 
 

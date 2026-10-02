@@ -17,6 +17,11 @@ from app.api.v1.routers import routers as domain_routers
 from app.config import settings
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import AccessLogMiddleware, CorrelationIdMiddleware
+from app.core.security_middleware import (
+    OriginCheckMiddleware,
+    RateLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 
 logger = get_logger("app")
 
@@ -56,6 +61,13 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=["X-Request-ID"],
     )
+    # Phase 23 hardening, inside CORS so blocked requests are still
+    # correlated and access-logged. Order (innermost last): headers are
+    # applied to every response; the origin check rejects cross-origin
+    # state-changing browser requests before rate counting burns budget.
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(OriginCheckMiddleware)
 
     # Uniform error envelope for every failure mode (section 55).
     register_exception_handlers(app)

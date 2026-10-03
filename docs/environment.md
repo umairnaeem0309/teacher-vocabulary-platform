@@ -39,6 +39,24 @@ Tools (C++ workload) + PostgreSQL headers, clone pgvector, build with
 `nmake /f Makefile.win`, then copy the DLL/SQL/control files into the PostgreSQL
 17 installation. This fallback is a last resort — see D004.
 
+## Readiness verification (Phase 28, D030)
+
+The full §104 checklist runs as one gate:
+
+```bash
+cd backend
+PYTHONPATH=.. uv run python ../scripts/phase28_readiness.py        # all 18 checks (~26 min)
+PYTHONPATH=.. uv run python ../scripts/phase28_readiness.py --fast  # quick subset
+PYTHONPATH=.. uv run python ../scripts/phase28_readiness.py --only tests.backend
+```
+
+Results merge into `data/construction/phase28_readiness_report.json`
+(Git-ignored). Database checks use a disposable
+`vocab_platform_readiness` database (created and dropped by the script);
+the development database is never migrated down or bootstrapped
+(D015/D030). Last full run: **18 passed / 0 failed / 0 skipped**
+(2026-10-03).
+
 ## Troubleshooting
 
 - **corepack `pnpm` fails with MODULE_NOT_FOUND** on this machine: corepack's
@@ -47,3 +65,12 @@ Tools (C++ workload) + PostgreSQL headers, clone pgvector, build with
   console defaults to cp1252; use `PYTHONIOENCODING=utf-8` when scripting.
 - **psql not on PATH**: it lives at
   `C:\Program Files\PostgreSQL\17\bin\psql.exe`.
+- **Scripts fail with "password authentication failed" against a correct
+  password**: never build a connection URL from `str(url)` — SQLAlchemy
+  renders the password as `***`. Keep the `URL` object; use
+  `url.render_as_string(hide_password=False)` only when a real string is
+  needed (D030).
+- **`mypy app` reports import-untyped on openpyxl after `uv sync`**: the
+  `mypy-stubs` group used to be non-default and a sync pruned it. Fixed
+  in `backend/pyproject.toml` via
+  `tool.uv.default-groups = ["dev", "mypy-stubs"]` (Phase 28).

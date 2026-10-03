@@ -50,6 +50,8 @@ host machine (no containers, no deployment). See `docs/environment.md`.
 
 ```bash
 createdb -U postgres vocab_platform
+psql -U postgres -d vocab_platform -c "CREATE EXTENSION vector;"   # pgvector (D004)
+cd backend && uv run alembic upgrade head                          # schema (§63)
 ```
 
 ### 3. Backend
@@ -71,6 +73,19 @@ cd frontend
 pnpm install
 pnpm dev                    # http://localhost:3000
 ```
+
+## Testing
+
+```bash
+cd backend  && uv run pytest                        # backend suite (359 tests)
+cd frontend && pnpm exec tsc --noEmit && pnpm exec eslint .
+cd frontend && pnpm exec vitest run                 # frontend unit tests (26)
+cd frontend && pnpm exec playwright test            # E2E acceptance, §59/§60/§61 (docs/e2e.md)
+cd backend  && PYTHONPATH=.. uv run python ../scripts/phase28_readiness.py
+                                                     # full local-readiness gate (§104, docs/environment.md)
+```
+
+Backups and the real restore test: `docs/backups.md`.
 
 ## Scope
 

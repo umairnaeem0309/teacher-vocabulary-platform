@@ -1,9 +1,31 @@
 # Current State
 
-Last updated: after Phase 27 (see plan.md for phase list)
+Last updated: after Phase 28 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 28 — Local readiness verification (§104, local-only scope per D026):
+**COMPLETE** 2026-10-03. `scripts/phase28_readiness.py` runs every §104
+item as 18 checks and writes a machine-readable report to
+`data/construction/phase28_readiness_report.json` (mergeable across runs
+via `--fast`/`--skip`/`--only`). Result: **18 passed / 0 failed /
+0 skipped** (~26 min for a full run). Covered: `.env.example`
+coverage + production guard fails fast on placeholder secrets; clean
+installs (fresh venv from `uv.lock`, `pnpm install` into an empty dir,
+lockfiles drift-free); clean database (scratch `vocab_platform_readiness`
+→ `CREATE EXTENSION vector` → `alembic upgrade head` → schema objects →
+first-run smoke: bootstrap window, login, empty browse → JSON access
+logs); migration reversibility (`downgrade base` → `upgrade head` on the
+scratch DB, D015 rule honored); builds (backend imports, `next build`
+from an empty `.next`); production stack (`uvicorn` APP_ENV=production +
+`next start` smoke with ports asserted free); tests (pytest **359**,
+tsc+eslint+vitest **26/26**, Playwright **7/7**); backup roundtrip (fresh
+`pg_dump` → real restore verified, 333.4s); README documents the clean
+setup. The dev database is never touched; the scratch DB is dropped
+afterwards. Bug root-caused en route: `str(SQLAlchemy URL)` masks the
+password (`***`) and caused bogus auth failures — URL objects are passed
+around and rendered with `render_as_string(hide_password=False)` only
+for env vars (D030).
 Phase 27 — Full end-to-end testing (§58/§59/§60/§61/§103): **COMPLETE**
 2026-10-03. Playwright suite (`frontend/e2e/`, 7 tests, all green in
 ~2 min against the real Chrome + dev stack): the §59 critical acceptance
@@ -152,7 +174,7 @@ data/construction/phase12_full.log); HNSW index rebuilt over the
 complete corpus via --reigate (262s; D016 rule satisfied); semantic
 recall verified post-rebuild (bank top-5, 0.054s query). Resumable
 (--full --resume), safe to interrupt.
-Next: Phase 27 — Full end-to-end testing (§103, incl. the §59 acceptance workflow)
+Next: Phase 29 — Final acceptance report (docs/final-acceptance-report.md)
 
 ## Completed work
 Phase 13:
@@ -385,8 +407,10 @@ Phase 1:
   (andreiramani/pgvector_pgsql_windows, MSVC-compiled for PG 17; D004
   addendum) after StackBuilder dropped pgvector from its catalog — the DLL
   is an unsigned third-party build; acceptable for local development only.
-  **Production (Phase 28) must replace it with a trusted build** (VS Build
-  Tools source compile or a distribution that ships pgvector).
+  **Any future production deployment must replace it with a trusted build**
+  (VS Build Tools source compile or a distribution that ships pgvector).
+  Phase 28 was retargeted to local readiness per D026, so the community
+  DLL remains in use locally.
 - Container/deployment scaffolding removed 2026-10-02: `docker-compose.yml`,
   `backend/Dockerfile` and `frontend/Dockerfile` deleted. The project runs
   natively on one local machine and `requiremnts.txt` never requires Docker
@@ -394,10 +418,13 @@ Phase 1:
 - Domain endpoints return 501 by design until their phase (see plan.md).
 
 ## Tests passed
-- Backend pytest: 358 passed (phase 23: 19 security tests; phase 26: 7 backup/restore tests)
+- Backend pytest: 359 passed (phase 27: priority_min `HIGH+` regression)
+- Frontend vitest: 26 passed; Playwright E2E: 7 passed (phase 27)
+- Phase 28 readiness gate: 18/18 checks passed (install, clean DB,
+  migrations, first-run, builds, prod stack, all test suites, backup
+  roundtrip, docs) — `data/construction/phase28_readiness_report.json`
 - Phase 25 performance: `scripts/phase25_perf_benchmark.py` (full DB) —
   see plan.md/decision.md D027 and docs/search.md for the recorded table
-- Frontend vitest: 24 passed
 - Quality gates: ruff clean, mypy clean, tsc clean, eslint clean, `next build` passes
 - Live HTTP smoke: secure headers present; cross-origin POST → 403; same-origin → 401; origin-less → 401; 12 rapid logins → 401×5 + 429×4; envelopes carry `X-Request-ID` + `request_id`.
 
@@ -438,13 +465,14 @@ Phase 1:
 - Live since Phase 14 (see above).
 
 ## Deployment state
-- None and not required: local-only operation (D026). The final phase verifies
-  a clean **local** reinstall/run, not a deployment.
+- None and not required: local-only operation (D026). The clean
+  **local** reinstall/run was verified by the Phase 28 readiness gate
+  (18/18, report in `data/construction/phase28_readiness_report.json`).
 
 ## Next task
-Phase 27 — Full end-to-end testing (§103): run the complete suite and the
-end-to-end acceptance workflow (login → search → filter → assign → review
-→ FSRS → dashboard → import/export), plus the security and backup paths.
+Phase 29 — Final acceptance report (§105): write
+`docs/final-acceptance-report.md` — requirements coverage, phase-by-phase
+status, test/gate totals and the readiness evidence.
 
 ---
 

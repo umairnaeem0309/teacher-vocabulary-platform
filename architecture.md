@@ -433,10 +433,10 @@ clean (ruff/mypy), pytest 351 passed, tsc/vitest/lint/next build green.
 
 ## Deployment
 
-## Deployment
-
-Development-only so far. Production deployment documentation is produced in
-Phase 28 (sections 65, 101).
+Local-only by design (D026): native PostgreSQL 17, `uvicorn` and
+`next build`/`next start` on one machine — no containers, no deployment
+target. Clean-environment readiness is verified by the Phase 28 gate
+(`scripts/phase28_readiness.py`, 18/18 checks; D030).
 
 ## Data Flow
 

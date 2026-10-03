@@ -1588,3 +1588,67 @@ Playwright tests in system Chrome. The harness choices:
 ## Status
 
 Accepted
+
+---
+
+# Decision D030 (2026-10-03): Local readiness gate (§104)
+
+Phase 28 verifies §104 "production readiness" as **local readiness** per
+D026's retargeting: one script, `scripts/phase28_readiness.py`, runs the
+whole checklist against this machine and writes a machine-readable
+report. Design choices:
+
+1. **18 named checks, one report.** Each §104 item is a check id
+   (env.example, install.uv_fresh/pnpm_scratch, db.clean_migrate,
+   app.first_run_smoke, build.frontend_clean, prod.stack, tests.*,
+   db.migration_reversible, backup.restore_roundtrip,
+   docs.setup_documented, …) recorded with status + duration in
+   `data/construction/phase28_readiness_report.json`. The report
+   **merges across invocations** by id (skips never overwrite a real
+   result), so the slow checks can be run in separate sessions
+   (`--fast`, `--skip`, `--only`) and still produce one honest
+   18/18 summary. Final result: 18 passed / 0 failed / 0 skipped.
+2. **Scratch database, never the dev one.** Database/app/production
+   checks run against a disposable `vocab_platform_readiness`
+   (created → extension → migrate → smoke → dropped). This extends
+   D015's rule: `alembic downgrade base` and first-run bootstrap must
+   never touch the development database (it holds the 41.7k-sense
+   corpus). Ports (8740/8000/3000) are asserted free before the
+   production-stack smoke so a leftover process cannot fake a pass.
+3. **Real configuration everywhere**: production guard tested with
+   placeholder secrets (must fail fast), full test suites (backend
+   359, vitest 26, Playwright 7/7), and a fresh `pg_dump` →
+   `pg_restore` roundtrip reusing D028's verifier. `docs.setup_documented`
+   asserts the README actually documents the clean setup commands the
+   gate itself exercises.
+4. **`str(URL)` masks the password — never stringify a SQLAlchemy URL.**
+   Root cause of this phase's "password authentication failed" mystery:
+   `str(url)` / f-string interpolation renders the password as `***`
+   (SQLAlchemy 2.1 `render_as_string` defaults to hiding it), so any
+   script that rebuilt a connection URL from its string form sent a
+   literal `***` password to PostgreSQL — an auth error that looks like
+   a server/ pg_hba problem. Rule: keep `URL` objects end-to-end; render
+   with `url.render_as_string(hide_password=False)` only when a real
+   string is required (env vars for subprocesses). The same pitfall is
+   already noted in D015 for `migrations/env.py`.
+5. **Windows portability**: pnpm is invoked through a `cmd /c` shim
+   wrapper (the `.cmd` shim does not exec directly from Python),
+   pytest/vitest output is ANSI-stripped before parsing, and long runs
+   are launched detached (job objects kill background children on
+   this machine).
+
+## Alternatives considered
+
+- A manual §104 checklist (rejected: not re-runnable; the report is the
+  evidence, and merging makes partial re-runs honest).
+- Running every check against the development database (rejected:
+  D015 — first-run and downgrade checks must be provable without
+  holding the real data hostage).
+- A Docker-based "clean environment" (rejected: D026, Docker cannot run
+  on this machine).
+- Skipping Playwright/pytest inside the gate because CI would run them
+  (rejected: there is no CI; the gate is the verification).
+
+## Status
+
+Accepted

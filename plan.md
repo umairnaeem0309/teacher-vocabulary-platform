@@ -668,7 +668,41 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
    - Docs: docs/e2e.md, D029 in decision.md, current-state.md,
      architecture.md testing section.
    - Commit `test: end-to-end acceptance suite (phase 27)` (plain, D021).
-28. Local readiness (clean-environment verification; no deployment per D026)
+28. Local readiness (clean-environment verification; no deployment per D026) — COMPLETE 2026-10-03
+   - `scripts/phase28_readiness.py` runs every §104 item as 18 checks and
+     writes `data/construction/phase28_readiness_report.json` (mergeable
+     across runs via `--fast` / `--skip` / `--only`).
+   - Clean environment: `.env.example` coverage + production guard fails
+     fast on placeholder secrets; fresh venv from `uv.lock` and fresh
+     `pnpm install` into an empty directory (lockfiles drift-free).
+   - Clean database: scratch `vocab_platform_readiness` created →
+     `CREATE EXTENSION vector` → `alembic upgrade head` → schema objects
+     (tables, vector extension/index, FTS tsvector, revision) → first-run
+     smoke (bootstrap window, login, empty browse) → JSON access logs;
+     dev DB never touched; scratch dropped afterwards.
+   - Reversibility: `alembic downgrade base` → `upgrade head` proven on
+     the scratch DB (D015 rule honored).
+   - Builds & prod stack: backend imports cleanly; `next build` from an
+     empty `.next`; `uvicorn` (APP_ENV=production) + `next start` smoke
+     on :8000/:3000 with ports asserted free beforehand.
+   - Tests: pytest **359 passed** (127.0s), tsc+eslint+vitest **26/26**,
+     Playwright **7/7** (122.2s); backup roundtrip: fresh `pg_dump` →
+     real restore verified, 333.4s.
+   - Docs check: README documents the clean setup (createdb → extension
+     → alembic → uv/pnpm → tests → readiness gate).
+   - Root cause fixed en route: `str(SQLAlchemy URL)` masks the password
+     (`***`) → auth failures in scripts; URL objects are now passed
+     around and rendered with `render_as_string(hide_password=False)`
+     only for env vars (D030).
+   - Gap found by the gate: `uv sync --frozen` pruned the non-default
+     `mypy-stubs` group, so `mypy app` failed with import-untyped on
+     openpyxl after a sync; `backend/pyproject.toml` now sets
+     `tool.uv.default-groups = ["dev", "mypy-stubs"]` so plain
+     `uv sync` keeps the stubs (verified: sync → mypy clean).
+   - Result: **18 passed / 0 failed / 0 skipped** (report merges across
+     invocations; ~26 min for a full run) at
+     `data/construction/phase28_readiness_report.json`.
+   - Commit `chore: local readiness verification gate (phase 28)` (plain, D021).
 29. Final acceptance report (docs/final-acceptance-report.md)
 
 ---

@@ -31,6 +31,11 @@ mypy-stubs = [
     "types-openpyxl>=3.1.5.20260827",
 ]
 
+[tool.uv]
+# Plain `uv sync` (README) must install the type stubs too, otherwise
+# `mypy app` fails with import-untyped on openpyxl after a fresh sync.
+default-groups = ["dev", "mypy-stubs"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

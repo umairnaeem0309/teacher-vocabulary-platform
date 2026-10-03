@@ -43,6 +43,11 @@ export function browseVocabulary(params: SearchRequestBody): Promise<SearchResul
   if (f.flags.length) qs.set("flags", f.flags.join(","));
   if (f.student_id) qs.set("student_id", f.student_id);
   if (f.assigned !== null) qs.set("assigned", f.assigned ? "true" : "false");
+  if (f.learning_states.length) qs.set("learning_states", f.learning_states.join(","));
+  if (f.due_only === true) qs.set("due_only", "true");
+  if (f.difficult_only === true) qs.set("difficult_only", "true");
+  if (f.teacher_priority_only === true) qs.set("teacher_priority_only", "true");
+  if (f.translation_availability) qs.set("translation_availability", f.translation_availability);
   return apiFetch<SearchResultBody>(`/api/v1/vocabulary?${qs.toString()}`);
 }
 

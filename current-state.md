@@ -1,9 +1,22 @@
 # Current State
 
-Last updated: after Phase 29 (see plan.md for phase list)
+Last updated: after Phase 30 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 30 — Post-acceptance BRD gap closure: **COMPLETE** 2026-10-03.
+After the §105 acceptance verdict, a full requiremnts.txt audit found
+seven requirements that were documented-complete but not fully
+implemented. All are now implemented and tested (see plan.md Phase 30):
+copy vocabulary to the clipboard in four formats (§20/§37); configurable
+review shortcuts in settings (§35); an automatic daily backup scheduler
+(§51); the §21 sorts `polish`/`cefr`/`topic`/`pos`/`student_status`; the
+§42 `translation_availability` filter (reliable/multiple/uncertain/
+missing, threshold 0.50 from the real D007 confidence distribution); §36
+review selection by assignment/set/state/difficulty/search; and §38
+review-state reset/adjust (`PATCH /assignments/{id}` with `reset_review`
+and `due_at`). Gates: backend **379 passed**, ruff/mypy clean, tsc/eslint
+clean, vitest **27/27**, Playwright **7/7**.
 Phase 29 — Final acceptance (§105): **COMPLETE** 2026-10-03.
 `docs/final-acceptance-report.md` records the verdict **ACCEPTED for
 local operation**: all ten §105 criteria re-verified with fresh

@@ -32,6 +32,7 @@ describe("stateToParams / paramsToState", () => {
         due_only: true,
         difficult_only: true,
         teacher_priority_only: true,
+        translation_availability: "reliable",
       },
       page: 3,
       pageSize: 100,
@@ -63,6 +64,14 @@ describe("stateToParams / paramsToState", () => {
     const state = paramsToState(new URLSearchParams("mode=bogus&sort=bogus"));
     expect(state.mode).toBe("lexical");
     expect(state.sort).toBe("headword");
+  });
+
+  it("accepts the §21 sort keys and the §42 translation filter", () => {
+    for (const sort of ["polish", "cefr", "topic", "pos", "student_status"]) {
+      expect(paramsToState(new URLSearchParams(`sort=${sort}`)).sort).toBe(sort);
+    }
+    const state = paramsToState(new URLSearchParams("tavail=missing"));
+    expect(state.filters.translation_availability).toBe("missing");
   });
 
   it("trims lists and drops empty tokens", () => {

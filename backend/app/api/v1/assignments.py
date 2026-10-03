@@ -12,6 +12,7 @@ teacher via the students service (§40). Duplicate prevention is layered
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
@@ -46,6 +47,9 @@ class AssignmentUpdate(BaseModel):
         pattern="^(VERY HIGH|HIGH|MEDIUM|LOW|VERY LOW)$",
     )
     is_active: bool | None = None
+    # §38: clear the FSRS card (back to new) and/or adjust the next due date.
+    reset_review: bool | None = None
+    due_at: datetime | None = None
 
 
 def _tid_dep(teacher: TeacherDep) -> uuid.UUID:
@@ -95,5 +99,7 @@ def update_assignment(
             learning_state=body.learning_state,
             teacher_priority_override=body.teacher_priority_override,
             is_active=body.is_active,
+            reset_review=bool(body.reset_review),
+            due_at=body.due_at,
             sent=sent,
         )

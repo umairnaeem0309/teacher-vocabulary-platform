@@ -225,6 +225,26 @@ export function FilterPanel({ facets, filters, onChange }: FilterPanelProps) {
         </select>
       </details>
 
+      <details
+        className="border-b border-neutral-200 pb-2"
+        open={filters.translation_availability !== null}
+      >
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          Translation (§42)
+        </summary>
+        <select
+          className="mt-2 w-full rounded border border-neutral-300 px-2 py-1"
+          value={filters.translation_availability ?? ""}
+          onChange={(e) => set("translation_availability", e.target.value || null)}
+        >
+          <option value="">— any —</option>
+          <option value="reliable">reliable translation</option>
+          <option value="multiple">multiple translations</option>
+          <option value="uncertain">uncertain translation</option>
+          <option value="missing">missing translation</option>
+        </select>
+      </details>
+
       <details className="border-b border-neutral-200 pb-2">
         <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-neutral-500">
           Max frequency rank
@@ -263,6 +283,7 @@ export function FilterPanel({ facets, filters, onChange }: FilterPanelProps) {
             due_only: null,
             difficult_only: null,
             teacher_priority_only: null,
+            translation_availability: null,
           })
         }
       >

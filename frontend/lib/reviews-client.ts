@@ -23,12 +23,36 @@ export interface DueItem {
   };
 }
 
+/** §36: narrow the review queue to a chosen selection. */
+export interface DueQueueOptions {
+  includeNew?: boolean;
+  assignmentIds?: string[];
+  setId?: string;
+  learningStates?: string[];
+  difficultOnly?: boolean;
+  search?: string;
+}
+
 export function fetchDueQueue(
   studentId: string,
   limit = 50,
+  options: DueQueueOptions = {},
 ): Promise<{ items: DueItem[]; total: number }> {
+  const qs = new URLSearchParams();
+  qs.set("student_id", studentId);
+  qs.set("limit", String(limit));
+  if (options.includeNew === false) qs.set("include_new", "false");
+  if (options.assignmentIds?.length) {
+    qs.set("assignment_ids", options.assignmentIds.join(","));
+  }
+  if (options.setId) qs.set("set_id", options.setId);
+  if (options.learningStates?.length) {
+    qs.set("learning_states", options.learningStates.join(","));
+  }
+  if (options.difficultOnly) qs.set("difficult_only", "true");
+  if (options.search) qs.set("search", options.search);
   return apiFetch<{ items: DueItem[]; total: number }>(
-    `/api/v1/reviews/due?student_id=${encodeURIComponent(studentId)}&limit=${limit}`,
+    `/api/v1/reviews/due?${qs.toString()}`,
   );
 }
 

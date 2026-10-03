@@ -63,10 +63,14 @@ By phase (details per phase in `plan.md`, decisions in `decision.md`):
 | 26 | Local backup/retention/restore with real restore test (D028) |
 | 27 | Playwright acceptance suite §59/§60/§61 (D029); 2 bugs found & fixed |
 | 28 | Local readiness gate, 18 checks (D030); 2 gaps found & fixed |
+| 30 | Post-acceptance BRD gap closure — copy (§20/§37), configurable shortcuts (§35), auto-backup scheduler (§51), full sorts (§21), translation filter (§42), review selection (§36), review reset (§38) (D031) |
 | — | D026: local-only scope; Docker/Compose removed |
 
 Also: §19 filter controls, §53 responsive layout (1440/1280/768),
-student vocabulary page, review interface with keyboard shortcuts.
+student vocabulary page, review interface with **configurable** keyboard
+shortcuts (§35), copy-to-clipboard in four formats (§37), the full §21
+sort set, the §42 translation filter, §36 review selection and §38 review
+reset (see the Phase 30 addendum).
 
 ## 3. Test results (re-run for this report)
 
@@ -214,7 +218,7 @@ cannot run on this machine (D002) and the BRD never mentions it.
 conventional prefixes scoped per phase, one commit per phase/fix group
 (§106: no giant commit), no AI trailers (D021; verified: no
 Co-Authored-By/Generated-with lines in history). Decisions
-D001–D030 logged with alternatives-considered; supersessions referenced,
+D001–D031 logged with alternatives-considered; supersessions referenced,
 never silently reversed.
 
 ---
@@ -227,3 +231,26 @@ requirement set in `requiremnts.txt` (local, production-quality,
 backed-up, documented). The platform installs, migrates, boots, tests,
 searches, deduplicates at sense level, schedules with FSRS, and
 backs up/restores on this machine from documented steps alone.
+
+---
+
+## 11. Post-acceptance addendum (Phase 30, D031)
+
+A full re-read of `requiremnts.txt` after the verdict found seven
+requirements that read as done in the docs but were not fully
+implemented. All seven are now closed; the verification below is the
+re-run after that work:
+
+| Item | Change |
+|---|---|
+| §20/§2/§37 copy vocabulary | Workbench selection toolbar copies English / English—Polish / English—definition / English—Polish—definition |
+| §35 post shortcut config | `/settings/shortcuts` persists bindings in localStorage; the review screen consumes them |
+| §51 automatic backup | `scripts/install_backup_schedule.py` registers a daily Task Scheduler job / cron entry |
+| §21 sorting | added `polish`, `cefr`, `topic`, `pos`, `student_status` (SQL browses) |
+| §42 translation availability | `translation_availability` filter (reliable/multiple/uncertain/missing) |
+| §36 review selection | `GET /reviews/due` narrows by assignment ids / set / states / difficult / search |
+| §38 reset/adjust review state | `PATCH /assignments/{id}` accepts `reset_review` and `due_at` |
+
+Post-change gates: backend pytest **379 passed**, ruff/mypy clean; tsc +
+eslint clean, vitest **27/27**; Playwright **7/7**. The §105 verdict above
+still stands.

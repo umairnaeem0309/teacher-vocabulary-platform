@@ -31,7 +31,13 @@ def _csv(value: str) -> list[str]:
 def browse_vocabulary(
     query: str = Query("", max_length=300),
     mode: str = Query("lexical", description="hybrid | lexical | semantic"),
-    sort: str = Query("headword", description="relevance | headword | priority | frequency"),
+    sort: str = Query(
+        "headword",
+        description=(
+            "relevance | headword | polish | cefr | topic | pos | "
+            "priority | frequency | student_status"
+        ),
+    ),
     limit: int = Query(50, ge=1, le=MAX_LIMIT),
     offset: int = Query(0, ge=0),
     cefr: str = Query("", description="comma-separated CEFR levels"),
@@ -44,6 +50,15 @@ def browse_vocabulary(
     flags: str = Query("", description="comma-separated flags"),
     student_id: str | None = Query(None, description="§30 assignment viewpoint"),
     assigned: bool | None = Query(None, description="§30: true/false"),
+    learning_states: str = Query("", description="§19: comma-separated states"),
+    due_only: bool | None = Query(None, description="§19/§59: due_at <= now"),
+    difficult_only: bool | None = Query(None, description="§19: lapsed cards"),
+    teacher_priority_only: bool | None = Query(
+        None, description="§19: has a teacher priority override"
+    ),
+    translation_availability: str | None = Query(
+        None, description="§42: reliable | multiple | uncertain | missing"
+    ),
 ) -> dict[str, Any]:
     """Browse/filter vocabulary (section 23: dense table data source)."""
     try:
@@ -63,6 +78,11 @@ def browse_vocabulary(
         flags=_csv(flags),
         student_id=sid,
         assigned=assigned,
+        learning_states=_csv(learning_states),
+        due_only=due_only,
+        difficult_only=difficult_only,
+        teacher_priority_only=teacher_priority_only,
+        translation_availability=translation_availability,
     )
     req = SearchRequest(
         query=query,

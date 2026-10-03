@@ -289,6 +289,117 @@ class TestReviewFlow:
         finally:
             _drop_teacher(email)
 
+    def test_queue_narrowing_and_reset(self, client: TestClient) -> None:
+        """§36 selection filters and §38 review-state reset/adjust."""
+        email, c, student, aid, _sense = self._setup(client)
+        try:
+            base = {"student_id": student}
+            assert c.get("/api/v1/reviews/due", params=base).json()["total"] == 1
+
+            # §36: learning-state scope.
+            assert (
+                c.get(
+                    "/api/v1/reviews/due",
+                    params={**base, "learning_states": "ASSIGNED"},
+                ).json()["total"]
+                == 1
+            )
+            assert (
+                c.get(
+                    "/api/v1/reviews/due",
+                    params={**base, "learning_states": "MASTERED"},
+                ).json()["total"]
+                == 0
+            )
+
+            # §36: explicit assignment selection.
+            assert (
+                c.get(
+                    "/api/v1/reviews/due", params={**base, "assignment_ids": aid}
+                ).json()["total"]
+                == 1
+            )
+            assert (
+                c.get(
+                    "/api/v1/reviews/due",
+                    params={**base, "assignment_ids": str(uuid.uuid4())},
+                ).json()["total"]
+                == 0
+            )
+
+            # §36: headword search substring.
+            headword = c.get("/api/v1/reviews/due", params=base).json()["items"][0][
+                "sense"
+            ]["headword"]
+            assert (
+                c.get(
+                    "/api/v1/reviews/due", params={**base, "search": headword[:3]}
+                ).json()["total"]
+                >= 1
+            )
+            assert (
+                c.get(
+                    "/api/v1/reviews/due", params={**base, "search": "zzzzzz"}
+                ).json()["total"]
+                == 0
+            )
+
+            # §36: a new card is not "difficult" (no lapses yet).
+            assert (
+                c.get(
+                    "/api/v1/reviews/due", params={**base, "difficult_only": "true"}
+                ).json()["total"]
+                == 0
+            )
+
+            # Record a review, then §38 adjust its due date into the past.
+            c.post(
+                "/api/v1/reviews",
+                json={"student_id": student, "assignment_id": aid, "rating": "EASY"},
+            )
+            past = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+            patch = c.patch(
+                f"/api/v1/assignments/{aid}",
+                params=base,
+                json={"due_at": past},
+            )
+            assert patch.status_code == 200, patch.text
+            due = c.get("/api/v1/reviews/due", params=base).json()
+            assert due["total"] == 1
+            assert due["items"][0]["is_overdue"] is True
+
+            # §38 reset: FSRS card cleared, §33 review history retained.
+            reset = c.patch(
+                f"/api/v1/assignments/{aid}",
+                params=base,
+                json={"reset_review": True},
+            )
+            assert reset.status_code == 200, reset.text
+            from app.db.session import get_engine
+
+            with get_engine().connect() as conn:
+                fsrs_rows = conn.execute(
+                    text(
+                        "SELECT count(*) FROM student_fsrs_states "
+                        "WHERE student_vocabulary_id = CAST(:a AS uuid)"
+                    ),
+                    {"a": aid},
+                ).scalar()
+                events = conn.execute(
+                    text(
+                        "SELECT count(*) FROM review_events "
+                        "WHERE student_vocabulary_id = CAST(:a AS uuid)"
+                    ),
+                    {"a": aid},
+                ).scalar()
+            assert fsrs_rows == 0
+            assert events == 1  # immutable history is never reset
+            after = c.get("/api/v1/reviews/due", params=base).json()
+            assert after["total"] == 1
+            assert after["items"][0]["is_overdue"] is None  # new again
+        finally:
+            _drop_teacher(email)
+
     def test_validation_and_isolation(self, client: TestClient) -> None:
         email, c, student, aid, _sense = self._setup(client)
         try:

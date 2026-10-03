@@ -45,9 +45,17 @@ score              = 0.60·(rrf(lex_rank) + 0.25·[is_prefix])
 ## Modes and sorts
 
 - `mode`: `hybrid` (default), `lexical`, `semantic`.
-- `sort`: `relevance` (default, score order), `headword`, `priority`,
-  `frequency` (SQL-ordered browses over the FULL filtered set — no top-k
-  truncation before pagination; `_finalize` re-sorts only relevance pages).
+- `sort` (all SQL-ordered browses over the FULL filtered set — no top-k
+  truncation before pagination; `_finalize` re-sorts only relevance pages):
+  - `relevance` (default, hybrid score order),
+  - `headword`, `priority`, `frequency`,
+  - `polish` — first Polish translation, none last (NULLS LAST),
+  - `cefr` — A1 < A2 < B1 < B2 < C1 < C2, unknown last,
+  - `topic` — first category key, uncategorised last,
+  - `pos` — part of speech, unknown last,
+  - `student_status` — the student's learning state
+    (NEW < ASSIGNED < ENCOUNTERED < LEARNING < REVIEWING < MASTERED);
+    requires a `student_id` filter, otherwise it degrades to `priority`.
 - Empty query = filtered browse (any mode); deterministic order:
   priority DESC, then headword.
 
@@ -60,6 +68,21 @@ score              = 0.60·(rrf(lex_rank) + 0.25·[is_prefix])
 - Both lexical and semantic signals are computed against the SAME base
   filter set (§22: filtering is not applied after the fact to a truncated
   candidate list).
+
+## Translation availability (§42)
+
+The `translation_availability` filter isolates Polish-translation quality:
+
+- `missing` — no translation row at all.
+- `multiple` — more than one translation.
+- `reliable` — at least one cognate-or-better D007 alignment
+  (`sense_translations.confidence >= 0.50`).
+- `uncertain` — has translations, but only low-confidence / unknown ones
+  (position fallback at 0.35; D007 confidences in the live corpus are
+  0.50, 0.35 and NULL only).
+
+Composed in SQL like every §42 filter, so it composes with all other
+filters and the same pagination total.
 
 ## Filter facets
 

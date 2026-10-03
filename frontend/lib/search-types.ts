@@ -6,7 +6,25 @@
  */
 
 export type SearchMode = "hybrid" | "lexical" | "semantic";
-export type SortKey = "relevance" | "headword" | "priority" | "frequency";
+export type SortKey =
+  | "relevance"
+  | "headword"
+  | "polish"
+  | "cefr"
+  | "topic"
+  | "pos"
+  | "priority"
+  | "frequency"
+  | "student_status";
+
+/** §42 translation-availability buckets (single-select filter). */
+export const TRANSLATION_AVAILABILITY = [
+  "reliable",
+  "multiple",
+  "uncertain",
+  "missing",
+] as const;
+export type TranslationAvailability = (typeof TRANSLATION_AVAILABILITY)[number];
 
 export interface SearchFilters {
   cefr: string[];
@@ -29,6 +47,8 @@ export interface SearchFilters {
   difficult_only: boolean | null;
   /** §19: senses carrying a teacher priority override. */
   teacher_priority_only: boolean | null;
+  /** §42: reliable | multiple | uncertain | missing Polish translations. */
+  translation_availability: string | null;
 }
 
 /** Conceptual learning states from §30. */
@@ -56,6 +76,7 @@ export const EMPTY_FILTERS: SearchFilters = {
   due_only: null,
   difficult_only: null,
   teacher_priority_only: null,
+  translation_availability: null,
 };
 
 export interface SearchHit {

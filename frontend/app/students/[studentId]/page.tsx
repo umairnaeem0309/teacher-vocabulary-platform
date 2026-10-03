@@ -360,8 +360,14 @@ function DashboardPanel({
 
       {data.difficult.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
             Difficult (most HARD ratings, last 30 days)
+            <Link
+              href={`${ROUTES.studentReview(data.student.id)}?difficult=yes`}
+              className="rounded border border-neutral-300 px-2 py-0.5 text-[10px] font-normal normal-case tracking-normal hover:bg-neutral-100"
+            >
+              Review difficult
+            </Link>
           </p>
           <ul className="mt-1 list-inside list-disc text-sm">
             {data.difficult.map((d) => (

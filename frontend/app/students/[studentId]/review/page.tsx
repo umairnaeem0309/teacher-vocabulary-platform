@@ -2,26 +2,59 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { use, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, use, useCallback, useEffect, useState } from "react";
 
 import { ApiError } from "@/lib/api";
 import { ROUTES } from "@/lib/routes";
 import { fetchDueQueue, recordReview, type DueItem } from "@/lib/reviews-client";
+import {
+  bindingLabel,
+  matchesBinding,
+  useShortcuts,
+} from "@/lib/shortcuts";
 
 /**
- * Live review screen (sections 32/34): one card at a time for a teacher
+ * Live review screen (sections 32/34/36): one card at a time for a teacher
  * conducting a lesson. Shows word, Polish, definition, example and
  * learning state; controls are HARD / MEDIUM / EASY (mapped to FSRS
- * Again/Hard/Good server-side). Keyboard: 1/2/3 or H/M/E rate, Space
- * reveals. Duplicate submission is guarded by an in-flight lock.
+ * Again/Hard/Good server-side). Keyboard shortcuts are configurable in
+ * settings (§35). §36: the queue can be narrowed via URL params — a set
+ * (`set=`), difficult cards (`difficult=yes`), learning states (`states=`) or
+ * a headword search (`search=`). Duplicate submission is guarded by an
+ * in-flight lock.
  */
 export default function ReviewPage({
   params,
 }: {
   params: Promise<{ studentId: string }>;
 }) {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-2xl px-6 py-16">Loading…</main>}>
+      <ReviewScreen params={params} />
+    </Suspense>
+  );
+}
+
+function ReviewScreen({
+  params,
+}: {
+  params: Promise<{ studentId: string }>;
+}) {
   const { studentId } = use(params);
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+
+  // §36 review-selection options decoded from the URL.
+  const setId = searchParams.get("set") ?? undefined;
+  const difficultOnly = searchParams.get("difficult") === "yes";
+  const search = searchParams.get("search") ?? undefined;
+  const learningStates = (searchParams.get("states") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const shortcuts = useShortcuts();
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -29,8 +62,22 @@ export default function ReviewPage({
   const [done, setDone] = useState(false);
 
   const queue = useQuery({
-    queryKey: ["reviews", "due", studentId],
-    queryFn: () => fetchDueQueue(studentId, 200),
+    queryKey: [
+      "reviews",
+      "due",
+      studentId,
+      setId,
+      difficultOnly,
+      search,
+      learningStates,
+    ],
+    queryFn: () =>
+      fetchDueQueue(studentId, 200, {
+        setId,
+        difficultOnly,
+        search,
+        learningStates,
+      }),
     retry: false,
   });
 
@@ -82,19 +129,25 @@ export default function ReviewPage({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.repeat) return;
-      const k = e.key.toLowerCase();
-      if (k === " " || e.code === "Space") {
+      // Ignore keystrokes while the teacher is typing in a field.
+      const target = e.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) {
+        return;
+      }
+      if (matchesBinding(e, shortcuts.reveal)) {
         e.preventDefault();
         setRevealed(true);
         return;
       }
-      if (k === "1" || k === "h") rate("HARD");
-      if (k === "2" || k === "m") rate("MEDIUM");
-      if (k === "3" || k === "e") rate("EASY");
+      if (revealed) {
+        if (matchesBinding(e, shortcuts.hard)) rate("HARD");
+        if (matchesBinding(e, shortcuts.medium)) rate("MEDIUM");
+        if (matchesBinding(e, shortcuts.easy)) rate("EASY");
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [rate]);
+  }, [rate, shortcuts, revealed]);
 
   if (queue.isError) {
     return (
@@ -198,7 +251,7 @@ export default function ReviewPage({
                 onClick={() => setRevealed(true)}
                 className="mt-8 rounded border border-neutral-300 px-6 py-2 text-sm hover:bg-neutral-100"
               >
-                Reveal (Space)
+                Reveal ({bindingLabel(shortcuts.reveal)})
               </button>
             )}
           </section>
@@ -210,7 +263,8 @@ export default function ReviewPage({
               onClick={() => rate("HARD")}
               className="rounded bg-red-600 px-4 py-3 text-white hover:bg-red-500 disabled:opacity-30"
             >
-              HARD <span className="text-xs opacity-75">(1)</span>
+              HARD{" "}
+              <span className="text-xs opacity-75">({bindingLabel(shortcuts.hard)})</span>
             </button>
             <button
               type="button"
@@ -218,7 +272,8 @@ export default function ReviewPage({
               onClick={() => rate("MEDIUM")}
               className="rounded bg-amber-500 px-4 py-3 text-white hover:bg-amber-400 disabled:opacity-30"
             >
-              MEDIUM <span className="text-xs opacity-75">(2)</span>
+              MEDIUM{" "}
+              <span className="text-xs opacity-75">({bindingLabel(shortcuts.medium)})</span>
             </button>
             <button
               type="button"
@@ -226,7 +281,8 @@ export default function ReviewPage({
               onClick={() => rate("EASY")}
               className="rounded bg-green-600 px-4 py-3 text-white hover:bg-green-500 disabled:opacity-30"
             >
-              EASY <span className="text-xs opacity-75">(3)</span>
+              EASY{" "}
+              <span className="text-xs opacity-75">({bindingLabel(shortcuts.easy)})</span>
             </button>
           </div>
 
@@ -237,8 +293,13 @@ export default function ReviewPage({
           )}
 
           <p className="mt-6 text-center text-xs text-neutral-400">
-            Shortcuts: 1/H hard · 2/M medium · 3/E easy · Space reveal
-            (configurable in settings — Phase 21)
+            Shortcuts: {bindingLabel(shortcuts.hard)} hard ·{" "}
+            {bindingLabel(shortcuts.medium)} medium ·{" "}
+            {bindingLabel(shortcuts.easy)} easy · {bindingLabel(shortcuts.reveal)}{" "}
+            reveal ·{" "}
+            <Link href={ROUTES.settingsShortcuts} className="underline">
+              configure
+            </Link>
           </p>
         </>
       )}

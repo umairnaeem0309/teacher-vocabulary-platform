@@ -24,3 +24,32 @@ export function assignSenses(body: {
     body: JSON.stringify(body),
   });
 }
+
+/** PATCH /assignments/{id} — state move, priority override, hide, §38 reset. */
+export interface AssignmentUpdate {
+  learning_state?: string;
+  teacher_priority_override?: string | null;
+  is_active?: boolean;
+  reset_review?: boolean;
+  due_at?: string;
+}
+
+export function updateAssignment(
+  studentId: string,
+  assignmentId: string,
+  body: AssignmentUpdate,
+): Promise<unknown> {
+  const qs = new URLSearchParams({ student_id: studentId });
+  return apiFetch<unknown>(
+    `/api/v1/assignments/${encodeURIComponent(assignmentId)}?${qs.toString()}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+}
+
+/** §38: clear the FSRS state so a card re-enters the queue as new. */
+export function resetReviewState(
+  studentId: string,
+  assignmentId: string,
+): Promise<unknown> {
+  return updateAssignment(studentId, assignmentId, { reset_review: true });
+}

@@ -222,6 +222,102 @@ class TestSearchAPILexical:
 
 
 # --------------------------------------------------------------------------
+# Section 21 sorts + section 42 translation availability
+# --------------------------------------------------------------------------
+
+
+def _browse(client: TestClient, sort: str, limit: int = 60) -> list[dict]:
+    resp = client.post(
+        "/api/v1/vocabulary/search",
+        json={"mode": "lexical", "query": "", "sort": sort, "limit": limit},
+    )
+    assert resp.status_code == 200, resp.text
+    return resp.json()["hits"]
+
+
+@requires_db
+class TestDeterministicSorts:
+    """§21: sorting by English, Polish, CEFR, topic, POS (not just the old 4)."""
+
+    def test_polish_puts_translations_first_deterministically(
+        self, client: TestClient
+    ) -> None:
+        # Translation strings themselves follow the database collation, so
+        # the assertion is structural: senses WITH a Polish translation come
+        # before senses without one (NULLS LAST), and the order is stable.
+        hits = _browse(client, "polish")
+        assert hits
+        present = [bool(h["translations"]) for h in hits]
+        # No presence after an absence (NULLS LAST).
+        if False in present:
+            first_absent = present.index(False)
+            assert all(not k for k in present[first_absent:])
+        assert _browse(client, "polish")[0]["sense_id"] == hits[0]["sense_id"]
+
+    def test_cefr_sorts_by_level_rank(self, client: TestClient) -> None:
+        order = {"A1": 0, "A2": 1, "B1": 2, "B2": 3, "C1": 4, "C2": 5}
+        hits = _browse(client, "cefr", limit=120)
+        assert hits
+        ranks = [order.get(h["cefr_level"]) for h in hits]
+        present = [r for r in ranks if r is not None]
+        assert present == sorted(present)
+
+    def test_pos_and_topic_return_ordered_pages(self, client: TestClient) -> None:
+        for sort in ("pos", "topic"):
+            hits = _browse(client, sort)
+            assert hits, sort
+            first = hits[0]["sense_id"]
+            again = _browse(client, sort)[0]["sense_id"]
+            assert first == again  # deterministic
+
+    def test_student_status_without_student_falls_back(self, client: TestClient) -> None:
+        # No student viewpoint → learning-state ordering is meaningless;
+        # the engine degrades to priority rather than erroring.
+        resp = client.post(
+            "/api/v1/vocabulary/search",
+            json={"mode": "lexical", "query": "", "sort": "student_status", "limit": 5},
+        )
+        assert resp.status_code == 200
+        assert len(resp.json()["hits"]) == 5
+
+
+@requires_db
+class TestTranslationAvailabilityFilter:
+    """§42: teachers can isolate missing/uncertain/reliable/multiple PL."""
+
+    def _search(self, client: TestClient, bucket: str, limit: int = 60) -> dict:
+        resp = client.post(
+            "/api/v1/vocabulary/search",
+            json={
+                "mode": "lexical",
+                "query": "",
+                "filters": {"translation_availability": bucket},
+                "limit": limit,
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        return resp.json()
+
+    def test_missing_has_no_translations(self, client: TestClient) -> None:
+        body = self._search(client, "missing")
+        assert body["total"] > 0
+        assert all(h["translations"] == [] for h in body["hits"])
+
+    def test_reliable_has_at_least_one_translation(self, client: TestClient) -> None:
+        body = self._search(client, "reliable")
+        assert body["total"] > 0
+        assert all(len(h["translations"]) >= 1 for h in body["hits"])
+
+    def test_multiple_has_more_than_one(self, client: TestClient) -> None:
+        body = self._search(client, "multiple")
+        assert all(len(h["translations"]) > 1 for h in body["hits"])
+
+    def test_uncertain_has_translations(self, client: TestClient) -> None:
+        body = self._search(client, "uncertain")
+        assert all(len(h["translations"]) >= 1 for h in body["hits"])
+
+
+# --------------------------------------------------------------------------
 # Section 21: example queries that must work
 # --------------------------------------------------------------------------
 

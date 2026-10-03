@@ -9,7 +9,7 @@ manual review and FSRS spaced repetition.
 - `decision.md` — architecture decision log
 - `current-state.md` — honest operational state (updated every phase)
 - `architecture.md` — actual implemented architecture
-- `plan.md` — phase plan (Phases 0–29)
+- `plan.md` — phase plan (Phases 0–30)
 - `master_prompt.md` / `requiremnts.txt` — original specification + BRD
 
 ## Stack
@@ -77,15 +77,18 @@ pnpm dev                    # http://localhost:3000
 ## Testing
 
 ```bash
-cd backend  && uv run pytest                        # backend suite (359 tests)
+cd backend  && uv run pytest                        # backend suite (379 tests)
 cd frontend && pnpm exec tsc --noEmit && pnpm exec eslint .
-cd frontend && pnpm exec vitest run                 # frontend unit tests (26)
+cd frontend && pnpm exec vitest run                 # frontend unit tests (27)
 cd frontend && pnpm exec playwright test            # E2E acceptance, §59/§60/§61 (docs/e2e.md)
 cd backend  && PYTHONPATH=.. uv run python ../scripts/phase28_readiness.py
                                                      # full local-readiness gate (§104, docs/environment.md)
 ```
 
-Backups and the real restore test: `docs/backups.md`.
+Backups and the real restore test: `docs/backups.md`. Register the
+required automatic daily backup once with
+`python scripts/install_backup_schedule.py install` (§51; Windows Task
+Scheduler or cron).
 
 ## Scope
 
@@ -96,8 +99,12 @@ See decision.md D026.
 
 ## Development status
 
-All phases (0–29) are complete — see `current-state.md` for the
+All phases (0–30) are complete — see `current-state.md` for the
 honest per-phase state and `docs/final-acceptance-report.md` for the
 §105 final acceptance verdict (ACCEPTED for local operation, 2026-10-03).
+Phase 30 closed seven `requiremnts.txt` gaps found by a post-acceptance
+audit (copy vocabulary, configurable shortcuts, automatic backups, the
+full §21 sort set, the §42 translation filter, §36 review selection, §38
+review reset); see `decision.md` D031.
 Do not assume any feature works until `current-state.md` marks it
 verified.

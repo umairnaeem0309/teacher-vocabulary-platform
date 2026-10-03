@@ -164,6 +164,20 @@ export default function SetDetailPage({
               >
                 {assign.isPending ? "Assigning…" : "Assign set"}
               </button>
+              {/* §36: review this set for the chosen student. */}
+              <Link
+                href={
+                  studentId
+                    ? `${ROUTES.studentReview(studentId)}?set=${encodeURIComponent(setId)}`
+                    : ROUTES.set(setId)
+                }
+                aria-disabled={!studentId}
+                className={`rounded border border-neutral-300 px-3 py-1.5 hover:bg-neutral-100 ${
+                  studentId ? "" : "pointer-events-none opacity-40"
+                }`}
+              >
+                Review set
+              </Link>
               {note && <span className="text-xs text-neutral-600">{note}</span>}
             </div>
           </section>

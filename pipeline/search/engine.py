@@ -8,6 +8,7 @@ Four layers per the specification:
   gives teachers safe, forgiving query syntax.
 - Layer 2 (filters): SQL-level constraints — CEFR, category (with all
   descendant subcategories), POS, priority level, frequency bands, flags,
+  translation availability (§42: reliable/multiple/uncertain/missing),
   and student-scoped views (learning state, due status, difficulty,
   assigned/not-assigned, teacher priority overrides). §22 forbids
   client-side filtering of a small result set, so filters compose in SQL.
@@ -22,6 +23,11 @@ Four layers per the specification:
 
 Both signals are computed against the SAME base filter set (§22: filtering
 is not applied after the fact to a truncated candidate list).
+
+Deterministic sorts (§21) are filtered browses over the lexical corpus
+(headword, Polish translation, CEFR, topic, POS, priority, frequency and —
+with a student viewpoint — learning status); SQL orders and paginates the
+full filtered set, so pagination stays consistent with the ordering.
 """
 
 from __future__ import annotations
@@ -69,6 +75,8 @@ class SearchFilters:
     due_only: bool | None = None  # due_at <= now
     difficult_only: bool | None = None  # lapses > 0
     teacher_priority_only: bool | None = None  # has override row
+    # §42 translation availability: reliable | multiple | uncertain | missing.
+    translation_availability: str | None = None
 
 
 @dataclass(frozen=True)
@@ -78,7 +86,9 @@ class SearchRequest:
     query: str = ""
     mode: str = "hybrid"  # hybrid | lexical | semantic
     filters: SearchFilters = field(default_factory=SearchFilters)
-    sort: str = "relevance"  # relevance | headword | priority | frequency
+    # §21 sorts: relevance | headword | polish | cefr | topic | pos |
+    # priority | frequency | student_status.
+    sort: str = "relevance"
     limit: int = 50
     offset: int = 0
 
@@ -265,6 +275,41 @@ def _apply_filters(
                 "WHERE tpo.student_id = :student_id)"
             )
 
+    if f.translation_availability is not None:
+        # §42: teachers must be able to isolate missing/uncertain Polish
+        # translations. D007 alignment confidences are 0.50 (cognate/common
+        # form) and 0.35 (low-confidence position fallback); the corpus
+        # carries no higher-value rows. So "reliable" = at least one
+        # cognate-or-better alignment (>= 0.50); "uncertain" = has
+        # translations but only low-confidence / unknown ones.
+        avail = f.translation_availability
+        if avail == "missing":
+            where.append(
+                "NOT EXISTS (SELECT 1 FROM sense_translations st "
+                "WHERE st.sense_id = vs.id)"
+            )
+        elif avail == "multiple":
+            where.append(
+                "(SELECT count(*) FROM sense_translations st "
+                "WHERE st.sense_id = vs.id) > 1"
+            )
+        elif avail == "reliable":
+            where.append(
+                "EXISTS (SELECT 1 FROM sense_translations st "
+                "WHERE st.sense_id = vs.id AND st.confidence >= 0.5)"
+            )
+        elif avail == "uncertain":
+            where.append(
+                "EXISTS (SELECT 1 FROM sense_translations st "
+                "WHERE st.sense_id = vs.id) AND NOT EXISTS ("
+                "SELECT 1 FROM sense_translations st "
+                "WHERE st.sense_id = vs.id AND st.confidence >= 0.5)"
+            )
+        else:
+            raise ValueError(
+                f"unknown translation availability: {avail}"
+            )
+
 
 # Frequency bands from the construction pipeline (top1000/top2000/top3000).
 _BAND_MAX = {"top1000": 1000, "top2000": 2000, "top3000": 3000}
@@ -315,6 +360,38 @@ def _lexical_query(
         order_sql = "lex_score DESC, vs.headword_normalized, vs.sense_key"
     elif req.sort == "headword":
         order_sql = "vs.headword_normalized, vs.sense_key"
+    elif req.sort == "polish":
+        # §21: sort by first Polish translation (none last).
+        order_sql = (
+            "(SELECT st.translation FROM sense_translations st "
+            " WHERE st.sense_id = vs.id ORDER BY st.position LIMIT 1) "
+            "NULLS LAST, vs.headword_normalized, vs.sense_key"
+        )
+    elif req.sort == "cefr":
+        # §21: CEFR order A1 < A2 < B1 < B2 < C1 < C2 (unknown last).
+        order_sql = (
+            "array_position(ARRAY['A1','A2','B1','B2','C1','C2'], "
+            "vs.cefr_level) NULLS LAST, vs.headword_normalized, vs.sense_key"
+        )
+    elif req.sort == "topic":
+        # §21: first category key (uncategorised last).
+        order_sql = (
+            "(SELECT min(c.key) FROM sense_categories sc "
+            " JOIN categories c ON c.id = sc.category_id "
+            " WHERE sc.sense_id = vs.id) NULLS LAST, "
+            "vs.headword_normalized, vs.sense_key"
+        )
+    elif req.sort == "pos":
+        order_sql = (
+            "vs.part_of_speech NULLS LAST, vs.headword_normalized, vs.sense_key"
+        )
+    elif req.sort == "student_status":
+        # §21: sort by the student's learning state (assignment viewpoint).
+        order_sql = (
+            "array_position("
+            "ARRAY['NEW','ASSIGNED','ENCOUNTERED','LEARNING','REVIEWING','MASTERED'],"
+            " sv.learning_state) NULLS LAST, vs.headword_normalized, vs.sense_key"
+        )
     elif req.sort == "priority":
         order_sql = (
             "vs.priority_score DESC NULLS LAST, vs.headword_normalized, vs.sense_key"
@@ -520,8 +597,21 @@ def _fetch_senses(conn: Connection, ids: list[uuid.UUID]) -> dict[uuid.UUID, dic
 def _normalize_request(req: SearchRequest) -> SearchRequest:
     """Clamp and validate a request (deterministic, no hidden defaults)."""
     mode = req.mode if req.mode in ("hybrid", "lexical", "semantic") else "hybrid"
-    valid_sorts = ("relevance", "headword", "priority", "frequency")
+    valid_sorts = (
+        "relevance",
+        "headword",
+        "polish",
+        "cefr",
+        "topic",
+        "pos",
+        "priority",
+        "frequency",
+        "student_status",
+    )
     sort = req.sort if req.sort in valid_sorts else "relevance"
+    if sort == "student_status" and req.filters.student_id is None:
+        # Learning-state ordering is meaningless without a student viewpoint.
+        sort = "priority"
     limit = max(1, min(req.limit, MAX_LIMIT))
     offset = max(0, req.offset)
     if not req.query.strip() and req.sort == "relevance":

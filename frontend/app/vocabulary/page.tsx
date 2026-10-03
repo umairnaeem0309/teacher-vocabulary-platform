@@ -27,14 +27,38 @@ import { ROUTES } from "@/lib/routes";
 
 const COLUMNS = [
   { key: "headword", label: "Headword", sort: "headword" as SortKey },
-  { key: "pos", label: "POS", sort: null },
-  { key: "cefr", label: "CEFR", sort: null },
-  { key: "translations", label: "Polish", sort: null },
+  { key: "pos", label: "POS", sort: "pos" as SortKey },
+  { key: "cefr", label: "CEFR", sort: "cefr" as SortKey },
+  { key: "translations", label: "Polish", sort: "polish" as SortKey },
   { key: "definition", label: "Definition", sort: null },
   { key: "priority", label: "Priority", sort: "priority" as SortKey },
   { key: "frequency", label: "Freq.", sort: "frequency" as SortKey },
   { key: "score", label: "Score", sort: "relevance" as SortKey },
 ] as const;
+
+/** §20/§37: clipboard formats for copying the current selection. */
+const COPY_FORMATS = [
+  { key: "en", label: "English", withPl: false, withDef: false },
+  { key: "en-pl", label: "English — Polish", withPl: true, withDef: false },
+  { key: "en-def", label: "English — definition", withPl: false, withDef: true },
+  {
+    key: "en-pl-def",
+    label: "English — Polish — definition",
+    withPl: true,
+    withDef: true,
+  },
+] as const;
+
+/** Render one vocabulary row in the requested clipboard format (§37). */
+function formatCopyLine(
+  hit: SearchHit,
+  opts: { withPl: boolean; withDef: boolean },
+): string {
+  const parts = [hit.headword];
+  if (opts.withPl) parts.push(hit.translations.slice(0, 3).join(", ") || "—");
+  if (opts.withDef) parts.push(hit.definition_preview ?? "—");
+  return parts.join(" — ");
+}
 
 /**
  * Dense vocabulary workbench (sections 23/39): spreadsheet-style table
@@ -92,6 +116,7 @@ function VocabularyPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [assignTo, setAssignTo] = useState("");
   const [assignNote, setAssignNote] = useState<string | null>(null);
+  const [copyNote, setCopyNote] = useState<string | null>(null);
   const students = useQuery({
     queryKey: ["students", "list", false],
     queryFn: () => listStudents(false),
@@ -162,6 +187,18 @@ function VocabularyPage() {
     );
   }
 
+  /** §20/§37: copy the selected rows as plain text for a message to students. */
+  async function copySelected(opts: { withPl: boolean; withDef: boolean }) {
+    const rows = hits.filter((h) => selected.has(h.sense_id));
+    const text = rows.map((h) => formatCopyLine(h, opts)).join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyNote(`Copied ${rows.length} sense${rows.length === 1 ? "" : "s"}.`);
+    } catch {
+      setCopyNote("Clipboard unavailable — copy is blocked by the browser.");
+    }
+  }
+
   const columns: LegacyColumnDef<SearchHit>[] = useMemo(
     () =>
       COLUMNS.map((col) => ({
@@ -220,8 +257,13 @@ function VocabularyPage() {
             >
               <option value="relevance">Sort: relevance</option>
               <option value="headword">Sort: headword</option>
+              <option value="polish">Sort: Polish</option>
+              <option value="cefr">Sort: CEFR</option>
+              <option value="topic">Sort: topic</option>
+              <option value="pos">Sort: part of speech</option>
               <option value="priority">Sort: priority</option>
               <option value="frequency">Sort: frequency</option>
+              <option value="student_status">Sort: student status</option>
             </select>
             <span className="text-sm text-neutral-500">
               {results.isFetching ? "…" : `${total.toLocaleString()} senses`}
@@ -283,10 +325,33 @@ function VocabularyPage() {
                 >
                   {addToSet.isPending ? "Adding…" : "Add"}
                 </button>
+                <span className="flex items-center gap-1 border-l border-neutral-600 pl-2">
+                  <span className="text-neutral-400">copy:</span>
+                  {COPY_FORMATS.map((fmt) => (
+                    <button
+                      key={fmt.key}
+                      type="button"
+                      title={`Copy: ${fmt.label}`}
+                      onClick={() => copySelected(fmt)}
+                      className="rounded bg-neutral-700 px-1.5 py-0.5 text-xs text-white hover:bg-neutral-600"
+                    >
+                      {fmt.label === "English"
+                        ? "EN"
+                        : fmt.key === "en-pl"
+                          ? "EN+PL"
+                          : fmt.key === "en-def"
+                            ? "EN+def"
+                            : "all"}
+                    </button>
+                  ))}
+                </span>
               </span>
             )}
             {assignNote && (
               <span className="text-xs text-neutral-600">{assignNote}</span>
+            )}
+            {copyNote && (
+              <span className="text-xs text-neutral-600">{copyNote}</span>
             )}
           </div>
 

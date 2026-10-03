@@ -2,14 +2,15 @@
 
 Local-only scope (D026): the application runs on one machine with a native
 PostgreSQL 17 install. Backups are plain `pg_dump` / `pg_restore` runs
-against that local server — no cloud, no external service, no scheduler
-required.
+against that local server — no cloud, no external service.
 
 Tooling:
 
 - `pipeline/storage/backup.py` — reusable core (backup, retention, restore,
   verify).
 - `scripts/db_backup.py` — CLI wrapper.
+- `scripts/install_backup_schedule.py` — registers the **automatic daily
+  backup** required by §51 (Windows Task Scheduler or cron).
 
 Backups are written to `data/backups/` (`data/backups/` is Git-ignored —
 dumps contain the full live database).
@@ -95,14 +96,37 @@ binary discovery, retention, URL parsing, and a **real** end-to-end
 `pg_dump` → `pg_restore` → compare round-trip on a throwaway database. The
 full-size run above is the phase-level proof and is re-runnable at any time.
 
+## Automatic backups (§51)
+
+§51 requires the database to be backed up **automatically**. Register a
+daily job once (from the repository root):
+
+```bash
+python scripts/install_backup_schedule.py install --time 02:00 --keep 7
+```
+
+- **Windows:** creates/replaces the Task Scheduler task
+  `VocabPlatformBackup` (daily, runs the backend virtualenv interpreter
+  with the correct working directory and `PYTHONPATH`).
+- **Linux/macOS:** appends a `crontab` line for the current user.
+- Both run the exact same `db_backup.py backup --keep 7` command used
+  manually, appending to `data/backups/backup.log` so unattended failures
+  are diagnosable.
+
+```bash
+python scripts/install_backup_schedule.py status   # is it registered?
+python scripts/install_backup_schedule.py print    # show the job, no changes
+python scripts/install_backup_schedule.py remove   # unregister
+```
+
+If the PostgreSQL client tools are not on the scheduler's `PATH`, set
+`PG_BIN` in the machine environment (the task inherits it).
+
 ## Operational notes
 
 - **Off-site copy:** backups live on the same machine by default. For
   disaster recovery, copy `data/backups/*.dump` to separate storage. This is
   a manual step under the local-only scope.
-- **Scheduling (optional):** run `backup` from Windows Task Scheduler (or a
-  cron entry on Unix) if automatic dumps are wanted; no scheduler is
-  installed by the project.
 - **Before risky operations** (bulk imports, migrations), take a backup
   first: `db_backup.py backup`.
 - Do not commit dumps: `data/backups/` is Git-ignored.
@@ -110,6 +134,7 @@ full-size run above is the phase-level proof and is re-runnable at any time.
 ## Deliverables (BRD §56)
 
 ```text
+automatic backup      scripts/install_backup_schedule.py install (§51)
 backup procedure      this document + scripts/db_backup.py backup
 retention procedure   --keep N (default 7), prune_backups()
 restore procedure     scripts/db_backup.py restore

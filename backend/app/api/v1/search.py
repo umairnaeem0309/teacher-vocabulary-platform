@@ -48,6 +48,10 @@ class SearchFiltersIn(BaseModel):
     due_only: bool | None = None
     difficult_only: bool | None = None
     teacher_priority_only: bool | None = None
+    translation_availability: str | None = Field(
+        default=None,
+        description="§42: reliable | multiple | uncertain | missing",
+    )
 
 
 class SearchRequestIn(BaseModel):
@@ -59,7 +63,11 @@ class SearchRequestIn(BaseModel):
     )
     filters: SearchFiltersIn = Field(default_factory=SearchFiltersIn)
     sort: str = Field(
-        default="relevance", description="relevance | headword | priority | frequency"
+        default="relevance",
+        description=(
+            "relevance | headword | polish | cefr | topic | pos | "
+            "priority | frequency | student_status"
+        ),
     )
     limit: int = Field(default=50, ge=1, le=MAX_LIMIT)
     offset: int = Field(default=0, ge=0)
@@ -81,6 +89,7 @@ def _to_engine_filters(f: SearchFiltersIn) -> SearchFilters:
         due_only=f.due_only,
         difficult_only=f.difficult_only,
         teacher_priority_only=f.teacher_priority_only,
+        translation_availability=f.translation_availability,
     )
 
 

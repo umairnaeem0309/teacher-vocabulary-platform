@@ -56,6 +56,7 @@ export function stateToParams(state: TableState): URLSearchParams {
   if (f.teacher_priority_only === true) {
     p.set(FLAG_PARAMS.teacher_priority_only, "yes");
   }
+  if (f.translation_availability) p.set("tavail", f.translation_availability);
   if (state.page !== 0) p.set("page", String(state.page));
   if (state.pageSize !== DEFAULT_PAGE_SIZE) p.set("size", String(state.pageSize));
   return p;
@@ -78,6 +79,7 @@ export function paramsToState(params: URLSearchParams): TableState {
     due_only: parseFlag(params.get("due")),
     difficult_only: parseFlag(params.get("difficult")),
     teacher_priority_only: parseFlag(params.get("tprio")),
+    translation_availability: params.get("tavail"),
   };
   const rawPage = parseNonNegativeInt(params.get("page"));
   return {
@@ -124,12 +126,22 @@ function parseMode(value: string | null): SearchMode {
     : DEFAULT_TABLE_STATE.mode;
 }
 
+const SORT_KEYS: SortKey[] = [
+  "relevance",
+  "headword",
+  "polish",
+  "cefr",
+  "topic",
+  "pos",
+  "priority",
+  "frequency",
+  "student_status",
+];
+
 function parseSort(value: string | null): SortKey {
-  return value === "relevance" || value === "priority" || value === "frequency"
-    ? value
-    : value === "headword"
-      ? "headword"
-      : DEFAULT_TABLE_STATE.sort;
+  return value !== null && (SORT_KEYS as string[]).includes(value)
+    ? (value as SortKey)
+    : DEFAULT_TABLE_STATE.sort;
 }
 
 function clampPageSize(value: string | null): number {

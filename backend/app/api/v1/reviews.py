@@ -36,8 +36,22 @@ def due_queue(
     student_id: str,
     limit: int = Query(50, ge=1, le=200),
     include_new: bool = True,
+    assignment_ids: str = Query(
+        "", description="§36: comma-separated assignment ids"
+    ),
+    set_id: str | None = Query(None, description="§36: restrict to a set"),
+    learning_states: str = Query(
+        "", description="§36: comma-separated learning states"
+    ),
+    difficult_only: bool = Query(False, description="§36: lapsed cards only"),
+    search: str | None = Query(None, description="§36: headword substring"),
 ) -> dict[str, Any]:
-    """Review queue (§32/§35): overdue first, then due today, then new."""
+    """Review queue (§32/§35/§36): overdue first, then due today, then new.
+
+    §36: optionally narrowed to a chosen selection instead of the whole
+    due queue — explicit assignments, a vocabulary set, learning states,
+    difficult cards, or a headword search.
+    """
     with get_engine().connect() as conn:
         return reviews_core.due_queue(
             conn,
@@ -45,7 +59,16 @@ def due_queue(
             student_id,
             limit=limit,
             include_new=include_new,
+            assignment_ids=_csv(assignment_ids),
+            set_id=set_id,
+            learning_states=_csv(learning_states),
+            difficult_only=difficult_only,
+            search=search,
         )
+
+
+def _csv(value: str) -> list[str]:
+    return [token.strip() for token in value.split(",") if token.strip()]
 
 
 @router.post("", status_code=201)

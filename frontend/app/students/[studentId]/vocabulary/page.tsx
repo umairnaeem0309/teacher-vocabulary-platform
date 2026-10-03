@@ -1,9 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useMemo, useState } from "react";
 
+import { resetReviewState } from "@/lib/assignments-client";
 import { ROUTES } from "@/lib/routes";
 import {
   fetchStudent,
@@ -30,8 +31,21 @@ export default function StudentVocabularyPage({
   params: Promise<{ studentId: string }>;
 }) {
   const { studentId } = use(params);
+  const queryClient = useQueryClient();
   const [rowFilter, setRowFilter] = useState<RowFilter>("all");
   const [stateFilter, setStateFilter] = useState<string>("");
+  const [note, setNote] = useState<string | null>(null);
+
+  // §38: a teacher can reset a card's review state where appropriate.
+  const reset = useMutation({
+    mutationFn: (assignmentId: string) =>
+      resetReviewState(studentId, assignmentId),
+    onSuccess: () => {
+      setNote("Review state reset — the card is new again.");
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+    },
+    onError: () => setNote("Could not reset the review state."),
+  });
 
   const student = useQuery({
     queryKey: ["students", "detail", studentId],
@@ -127,6 +141,7 @@ export default function StudentVocabularyPage({
         <span className="text-neutral-500">
           {visible.length} of {items.length} shown
         </span>
+        {note && <span className="text-xs text-neutral-600">{note}</span>}
       </div>
 
       <table className="mt-3 w-full border-collapse text-sm">
@@ -138,6 +153,7 @@ export default function StudentVocabularyPage({
             <th className="py-1">State</th>
             <th className="py-1">Due</th>
             <th className="py-1">Reps</th>
+            <th className="py-1">Review</th>
           </tr>
         </thead>
         <tbody>
@@ -160,11 +176,22 @@ export default function StudentVocabularyPage({
                 {item.due_at ? new Date(item.due_at).toLocaleDateString() : "—"}
               </td>
               <td className="py-1">{item.repetitions ?? 0}</td>
+              <td className="py-1">
+                <button
+                  type="button"
+                  title="Reset the FSRS review state (card becomes new)"
+                  disabled={reset.isPending || item.repetitions == null}
+                  onClick={() => reset.mutate(item.id)}
+                  className="rounded border border-neutral-300 px-2 py-0.5 text-xs hover:bg-neutral-100 disabled:opacity-40"
+                >
+                  Reset
+                </button>
+              </td>
             </tr>
           ))}
           {visible.length === 0 && (
             <tr>
-              <td colSpan={6} className="py-6 text-center text-neutral-500">
+              <td colSpan={7} className="py-6 text-center text-neutral-500">
                 {vocabulary.isLoading ? "Loading…" : "Nothing matches this filter."}
               </td>
             </tr>

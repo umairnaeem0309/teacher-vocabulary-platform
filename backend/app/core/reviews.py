@@ -250,15 +250,35 @@ def due_queue(
     *,
     limit: int = 50,
     include_new: bool = True,
+    assignment_ids: list[str] | None = None,
+    set_id: str | None = None,
+    learning_states: list[str] | None = None,
+    difficult_only: bool = False,
+    search: str | None = None,
 ) -> dict[str, Any]:
     """What to review next (§32/§35): overdue first, then due, then new.
 
     Overdue = due_at < now; due = now <= due_at <= end of today; new =
     assigned but never reviewed (no FSRS row). Ordered so the teacher
     sees the most-urgent cards first; deterministic within ties.
+
+    §36: the queue may also be narrowed to a selection — explicit
+    ``assignment_ids``, a vocabulary ``set_id``, ``learning_states``,
+    lapsed cards only (``difficult_only``) or a headword ``search``.
     """
     sid = str(_get_scoped(conn, teacher_id, student_id)["id"])
-    rows = _due_rows(conn, sid, limit=limit, include_new=include_new)
+    rows = _due_rows(
+        conn,
+        sid,
+        limit=limit,
+        include_new=include_new,
+        teacher_id=teacher_id,
+        assignment_ids=assignment_ids,
+        set_id=set_id,
+        learning_states=learning_states,
+        difficult_only=difficult_only,
+        search=search,
+    )
     items = [
         {
             "assignment_id": str(r["assignment_id"]),
@@ -289,13 +309,46 @@ def _due_rows(
     *,
     limit: int = 50,
     include_new: bool = True,
+    teacher_id: uuid.UUID | None = None,
+    assignment_ids: list[str] | None = None,
+    set_id: str | None = None,
+    learning_states: list[str] | None = None,
+    difficult_only: bool = False,
+    search: str | None = None,
 ) -> Any:
     """Bucketed queue SQL (shared with the Phase 21 dashboard). Caller has
-    already scoped the student id; this runs no authorization checks."""
+    already scoped the student id; this runs no authorization checks.
+
+    §36 optional narrowing: ``assignment_ids``, ``set_id`` (scoped to the
+    owning teacher), ``learning_states``, ``difficult_only`` and a headword
+    ``search`` substring all compose as extra AND predicates.
+    """
     # include_new adds never-reviewed rows to the queue; the OR lives
     # INSIDE the parenthesized due-condition (an outside OR would match
     # every unreviewed row in the database).
     new_branch = " OR fs.student_vocabulary_id IS NULL" if include_new else ""
+    params: dict[str, Any] = {"sid": sid, "lim": limit}
+    extra = ""
+    if assignment_ids:
+        extra += " AND sv.id = ANY(CAST(:aids AS uuid[]))"
+        params["aids"] = [str(a) for a in assignment_ids]
+    if set_id:
+        extra += (
+            " AND sv.sense_id IN (SELECT vsi.sense_id FROM vocabulary_set_items vsi "
+            "JOIN vocabulary_sets vset ON vset.id = vsi.set_id "
+            "WHERE vsi.set_id = CAST(:set_id AS uuid) "
+            "AND vset.teacher_id = CAST(:tid AS uuid))"
+        )
+        params["set_id"] = str(set_id)
+        params["tid"] = str(teacher_id)
+    if learning_states:
+        extra += " AND sv.learning_state = ANY(:lstates)"
+        params["lstates"] = list(learning_states)
+    if difficult_only:
+        extra += " AND fs.lapses > 0"
+    if search:
+        extra += " AND vs.headword ILIKE :search"
+        params["search"] = f"%{search}%"
     return (
         conn.execute(
             text(
@@ -325,10 +378,11 @@ def _due_rows(
                 + new_branch
                 + " OR fs.due_at <= date_trunc('day', now()) "
                 "        + interval '1 day' - interval '1 microsecond')"
+                + extra
                 + " ORDER BY bucket, fs.due_at NULLS LAST, vs.headword, sv.id "
                 "LIMIT :lim"
             ),
-            {"sid": sid, "lim": limit},
+            params,
         )
         .mappings()
         .all()

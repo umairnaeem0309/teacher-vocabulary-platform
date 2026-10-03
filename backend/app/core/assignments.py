@@ -14,6 +14,7 @@ and belong to the calling teacher (WHERE-scoped), otherwise 404.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import text
@@ -197,12 +198,16 @@ def update_assignment(
     learning_state: str | None = None,
     teacher_priority_override: str | None = None,
     is_active: bool | None = None,
+    reset_review: bool = False,
+    due_at: datetime | None = None,
     sent: set[str] | None = None,
 ) -> dict[str, Any]:
-    """Edit one assignment: state moves / teacher priority override / hide.
+    """Edit one assignment: state moves / priority override / hide / review state.
 
     §31: teacher overrides are explicit — the endpoint applies exactly
-    what the teacher sent, nothing is inferred.
+    what the teacher sent, nothing is inferred. §38: ``reset_review``
+    clears the FSRS card (back to the new-card bucket) without touching
+    the immutable §33 review history; ``due_at`` adjusts the next due date.
     """
     sid = _student_scoped(conn, teacher_id, student_id)
     aid = _validate_uuid(assignment_id, "assignment")
@@ -228,19 +233,48 @@ def update_assignment(
     if "is_active" in sent and is_active is not None:
         sets.append("is_active = :act")
         params["act"] = is_active
-    if not sets:
+    if reset_review and "learning_state" not in sent:
+        # A reset returns the card to the start of the learning journey;
+        # an explicit learning_state in the same PATCH still wins.
+        sets.append("learning_state = 'ASSIGNED'")
+    if not sets and not reset_review and not ("due_at" in sent and due_at is not None):
         raise ValidationError("No assignment fields to update.")
-    sets.append("updated_at = now()")
-    result = conn.execute(
-        text(
-            "UPDATE student_vocabulary SET "
-            + ", ".join(sets)
-            + " WHERE id = CAST(:aid AS uuid) AND student_id = CAST(:sid AS uuid)"
-        ),
-        params,
-    )
-    if result.rowcount == 0:
-        raise NotFoundError("No such assignment.")
+    if sets:
+        sets.append("updated_at = now()")
+        result = conn.execute(
+            text(
+                "UPDATE student_vocabulary SET "
+                + ", ".join(sets)
+                + " WHERE id = CAST(:aid AS uuid) AND student_id = CAST(:sid AS uuid)"
+            ),
+            params,
+        )
+        if result.rowcount == 0:
+            raise NotFoundError("No such assignment.")
+
+    if reset_review:
+        # §38: clear the FSRS card so the assignment re-enters the queue as
+        # new. review_events (the §33 audit trail) is intentionally kept.
+        conn.execute(
+            text(
+                "DELETE FROM student_fsrs_states "
+                "WHERE student_vocabulary_id = CAST(:aid AS uuid)"
+            ),
+            {"aid": aid},
+        )
+    elif "due_at" in sent and due_at is not None:
+        # §38: adjust when the card next comes up, without moving other state.
+        adjusted = conn.execute(
+            text(
+                "UPDATE student_fsrs_states SET due_at = :due "
+                "WHERE student_vocabulary_id = CAST(:aid AS uuid)"
+            ),
+            {"aid": aid, "due": due_at},
+        )
+        if adjusted.rowcount == 0:
+            raise ValidationError(
+                "This assignment has no review state to adjust yet."
+            )
     return get_assignment(conn, teacher_id, student_id, assignment_id)
 
 

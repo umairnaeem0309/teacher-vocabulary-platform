@@ -1652,3 +1652,75 @@ report. Design choices:
 ## Status
 
 Accepted
+
+---
+
+# Decision D031 (2026-10-03): Post-acceptance BRD gap closure
+
+After the §105 verdict, the whole `requiremnts.txt` (58 sections) was
+audited line by line against the code, tests and docs. Seven items were
+true at the documentation level but not fully implemented; all seven are
+now closed. The choices worth recording:
+
+1. **New sorts are SQL browses, not Python re-sorts.** `polish`, `cefr`,
+   `topic`, `pos` and `student_status` join the deterministic-sort set in
+   `pipeline/search/engine.py`, which already ran as filtered browses over
+   the full set (SQL `ORDER BY`, real pagination). This keeps §22's rule
+   intact: ordering and paging happen together in the database. Sorting
+   by first Polish translation necessarily follows the database collation
+   (not Python's code-point order), which is why the test asserts
+   NULLS-LAST structure and determinism rather than a literal string
+   order. `student_status` needs the student join, so without a
+   `student_id` filter it degrades to `priority` instead of erroring.
+2. **§42 threshold comes from the data, not the design doc.** The D007
+   spec mentions 0.95/0.70/0.50/0.35 alignments, but the merged corpus
+   stores only **0.50, 0.35 and NULL** (checked directly). A
+   ">= 0.70 reliable" filter returned zero rows — dead UI. `reliable` is
+   therefore `confidence >= 0.50` (cognate-or-better) and `uncertain` is
+   "has translations, none at 0.50+". Honest about the real distribution.
+3. **§36 review selection is query parameters on `GET /reviews/due`.**
+   `assignment_ids`, `set_id`, `learning_states`, `difficult_only` and
+   `search` compose as extra AND predicates in the shared `_due_rows`
+   SQL. The set is scoped to the owning teacher (join on
+   `vocabulary_sets.teacher_id`), and the dashboard's reuse of `_due_rows`
+   is unaffected because every new argument is optional. The frontend
+   reads these from the review URL so a set page or the student profile
+   can deep-link a focused session.
+4. **§38 reset deletes the FSRS card, never the history.** `reset_review`
+   removes the `student_fsrs_states` row (the card re-enters as new) and
+   `due_at` adjusts the next due date in place; the immutable §33
+   `review_events` audit trail is deliberately preserved. Both live on the
+   existing `PATCH /assignments/{id}` (explicit-fields semantics, D012).
+5. **Shortcuts persist in the browser (localStorage), not the server.**
+   These are a single teacher's ergonomics on one machine (D026), so a
+   backend table would be over-engineering. `frontend/lib/shortcuts.ts`
+   exposes a `useSyncExternalStore` store (React-idiomatic; the repo's
+   eslint forbids `setState` in effects) so the review screen updates the
+   moment the settings page saves.
+6. **Automatic backups use the OS scheduler, not an in-process timer.**
+   `scripts/install_backup_schedule.py` registers a daily Windows Task
+   Scheduler task (or a crontab line) that runs the exact manual
+   `db_backup.py backup` command, so the scheduled and manual paths can
+   never drift. An in-app scheduler was rejected: the server is not always
+   running under this local-only deployment.
+7. **Copy formats mirror §37 exactly** — English; English—Polish;
+   English—definition; English—Polish—definition — via the async
+   Clipboard API with a visible failure note if the browser blocks it.
+
+## Alternatives considered
+
+- A Python re-sort for the new sorts (rejected: breaks pagination
+  coherence and contradicts the existing browse design).
+- Lowering/raising the §42 threshold to match the design doc's nominal
+  confidences (rejected: invents data the corpus does not contain).
+- A dedicated `POST /reviews/selection` endpoint (rejected: one GET with
+  optional filters is simpler and shares `_due_rows` with the dashboard).
+- Deleting `review_events` on reset (rejected: §33 history is immutable).
+- A backend `settings` table for shortcuts (rejected: local single-teacher
+  scope, D026).
+- A long-running Python scheduler thread (rejected: server uptime is not
+  guaranteed locally; OS scheduling is the reliable layer).
+
+## Status
+
+Accepted

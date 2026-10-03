@@ -717,6 +717,39 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
      D026), backup status (real restore verified).
    - Verdict: ACCEPTED for local operation.
    - Commit `docs: final acceptance report (phase 29)` (plain, D021).
+30. Post-acceptance BRD gap closure — COMPLETE 2026-10-03
+   - A full requiremnts.txt (58-section BRD) audit against code/tests/docs
+     found seven items that were documented-complete but not fully
+     implemented. All seven are now implemented and tested:
+     1. §20/§2/§37 **copy vocabulary** — the workbench selection toolbar
+        copies the selected rows in four formats (English; English—Polish;
+        English—definition; English—Polish—definition) to the clipboard.
+     2. §35/master §34 **configurable shortcuts** — `/settings/shortcuts`
+        is a real page; bindings persist in localStorage
+        (`frontend/lib/shortcuts.ts`, `useSyncExternalStore`) and the
+        review screen consumes them (labels + key handling).
+     3. §51 **automatic backups** — `scripts/install_backup_schedule.py`
+        registers a daily Windows Task Scheduler task or cron entry that
+        runs the same `db_backup.py backup` command (docs/backups.md).
+     4. §21 **sorting** — added `polish`, `cefr`, `topic`, `pos` and
+        `student_status` sorts (SQL-ordered browses) beside
+        relevance/headword/priority/frequency, surfaced in the table.
+     5. §42 **translation availability** — `translation_availability`
+        filter (reliable/multiple/uncertain/missing) in the engine, both
+        APIs, the filter panel and URL state.
+     6. §36 **review selection** — `GET /reviews/due` accepts
+        `assignment_ids`, `set_id`, `learning_states`, `difficult_only`
+        and `search`; the review screen reads them from the URL and the
+        student/set pages link into them.
+     7. §38 **reset/adjust review state** — `PATCH /assignments/{id}`
+        accepts `reset_review` (clears the FSRS card, keeps the §33
+        history) and `due_at` (adjust the next due date); the student
+        vocabulary table exposes a reset button.
+   - Tests: backend **379 passed** (was 359; +8 search sorts/§42, +1
+     review queue/reset, +7 backup-schedule units, +4 §42 filter), tsc +
+     eslint clean, vitest **27/27**, Playwright **7/7**, ruff/mypy clean.
+   - Docs: docs/search.md (sorts + §42), docs/backups.md (automatic
+     backup), decision.md D031, this plan and current-state.md.
 
 ---
 

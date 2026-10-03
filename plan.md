@@ -703,7 +703,20 @@ data/construction/emb-v1_checkpoint.json, method in docs/embeddings.md).
      invocations; ~26 min for a full run) at
      `data/construction/phase28_readiness_report.json`.
    - Commit `chore: local readiness verification gate (phase 28)` (plain, D021).
-29. Final acceptance report (docs/final-acceptance-report.md)
+29. Final acceptance report (docs/final-acceptance-report.md) — COMPLETE 2026-10-03
+   - All ten §105 criteria re-verified with fresh evidence: backend
+     **359 passed**, vitest **26/26**, tsc/eslint clean, Playwright
+     **7/7** (§59/§60/§61 against the real stack), readiness gate
+     **18/18**, backup restore re-verified, git history clean (one
+     commit per phase, no trailers, D021).
+   - Report contents per §105: implemented features (phase table),
+     test results, known limitations (10 honest items incl. the 356
+     `io test` fixture rows on the dev DB), dataset statistics (5
+     sources, 41,690-sense corpus, coverage numbers), search benchmark
+     (Phase 25 table + ranking probes), deployment status (local-only,
+     D026), backup status (real restore verified).
+   - Verdict: ACCEPTED for local operation.
+   - Commit `docs: final acceptance report (phase 29)` (plain, D021).
 
 ---
 

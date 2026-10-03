@@ -1,9 +1,18 @@
 # Current State
 
-Last updated: after Phase 28 (see plan.md for phase list)
+Last updated: after Phase 29 (see plan.md for phase list)
 Honest-state rule applies: this file reflects reality, not intent.
 
 ## Current phase
+Phase 29 — Final acceptance (§105): **COMPLETE** 2026-10-03.
+`docs/final-acceptance-report.md` records the verdict **ACCEPTED for
+local operation**: all ten §105 criteria re-verified with fresh
+evidence (backend 359 passed, vitest 26/26, tsc/eslint clean,
+Playwright 7/7 on §59/§60/§61, readiness gate 18/18, backup restore
+verified, clean git history), plus implemented-features table, dataset
+statistics (41,690-sense corpus), search benchmark, deployment/backup
+status and 10 honest known limitations (incl. 356 `io test` fixture
+rows left on the dev DB by Phase 22 roundtrip tests).
 Phase 28 — Local readiness verification (§104, local-only scope per D026):
 **COMPLETE** 2026-10-03. `scripts/phase28_readiness.py` runs every §104
 item as 18 checks and writes a machine-readable report to
@@ -174,7 +183,7 @@ data/construction/phase12_full.log); HNSW index rebuilt over the
 complete corpus via --reigate (262s; D016 rule satisfied); semantic
 recall verified post-rebuild (bank top-5, 0.054s query). Resumable
 (--full --resume), safe to interrupt.
-Next: Phase 29 — Final acceptance report (docs/final-acceptance-report.md)
+Next: none — all phases in plan.md are COMPLETE (Phases 0–29)
 
 ## Completed work
 Phase 13:
@@ -470,9 +479,9 @@ Phase 1:
   (18/18, report in `data/construction/phase28_readiness_report.json`).
 
 ## Next task
-Phase 29 — Final acceptance report (§105): write
-`docs/final-acceptance-report.md` — requirements coverage, phase-by-phase
-status, test/gate totals and the readiness evidence.
+None — plan.md Phases 0–29 are all COMPLETE. Final acceptance report:
+`docs/final-acceptance-report.md` (§105 verdict: ACCEPTED for local
+operation).
 
 ---
 

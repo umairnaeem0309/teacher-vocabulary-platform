@@ -96,6 +96,8 @@ See decision.md D026.
 
 ## Development status
 
-Phase 0 (project initialization) is complete — see `current-state.md`.
-Application features are implemented phase by phase; do not assume any
-feature works until `current-state.md` marks it verified.
+All phases (0–29) are complete — see `current-state.md` for the
+honest per-phase state and `docs/final-acceptance-report.md` for the
+§105 final acceptance verdict (ACCEPTED for local operation, 2026-10-03).
+Do not assume any feature works until `current-state.md` marks it
+verified.

@@ -1,24 +1,103 @@
 # Setup — Run from the GitHub Zip (Client Deliverable)
 
 This is the one-page runbook for the client: download the GitHub zip,
-install the prerequisites, restore the database dump, and run the demo.
+install everything you need, restore the database dump, and run the demo.
+
+> The GitHub zip contains **no data** and **no `node_modules`/`.venv`** —
+> those are installed on first run. The only "extra file" you need is the
+> database dump (`data/backups/*.dump`, ~231 MiB), which is a separate
+> download from where you get the source.
 
 ---
 
-## 1. Prerequisites (one-time per machine)
+## 0. What the client actually gets
 
-| Component | Required | Notes |
-|---|---|---|
-| PostgreSQL | 17 | Native install. `postgres` user / `postgres` password / `localhost:5432` |
-| `vector` extension | Yes | `CREATE EXTENSION vector;` on the `vocab_platform` database |
-| Python | 3.12+ | For the backend |
-| `uv` | Yes | https://docs.astral.sh/uv/ — used to install the backend |
-| Node.js | 22+ | For the frontend |
-| `pnpm` | Yes | `npm install -g pnpm` |
-| Browser | Chrome | Used for the demo and the automated check |
+| Item | Where from | Size | Purpose |
+|---|---|---|---|
+| `vocab-platform.zip` | GitHub repo archive | ~50–80 MB | Source, docs, migrations, configs, scripts |
+| `vocab_platform_<ts>.dump` | Backups folder (local handoff) | ~231 MiB | Full database (41,690 senses, embeddings, review state) |
 
-> The GitHub zip contains **no data** and **no `node_modules`/`.venv`** —
-> those are installed on first run.
+Nothing else is needed to run the demo. `data/raw` (2.7 GB) is used only
+to rebuild the database and is never committed.
+
+---
+
+## 1. Machine prerequisites (install these once per machine)
+
+Open PowerShell **as Administrator** and run the relevant commands.
+
+### Windows 10/11
+
+```powershell
+# 1) Node.js 22+ (https://nodejs.org/) — check with: node -v
+# 2) pnpm (https://pnpm.io/installation#using-chocolatey)
+winget install pnpm
+
+# 3) Python 3.12+ (https://www.python.org/downloads/) — check with: python --version
+#    During install, tick "Add Python to PATH".
+
+# 4) uv (https://docs.astral.sh/uv/getting-started/installation/)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 5) PostgreSQL 17 (https://www.postgresql.org/download/windows/)
+#    During install: set superuser password to postgres / keep port 5432.
+# 6) pgvector (https://github.com/pgvector/pgvector) — see "Enable vector" below.
+
+# 7) Git (https://git-scm.com/download/win) — check with: git --version
+```
+
+#### Enable the `vector` extension for PostgreSQL 17
+
+```powershell
+# 1) Unzip pgvector into PostgreSQL's share dir (replace the version/number
+#    with what you installed, e.g. C:/Program Files/PostgreSQL/17).
+#    Default URL: https://github.com/pgvector/pgvector/archive/refs/tags/v0.7.2.zip
+Expand-Archive -Path "C:/pgvector-0.7.2.zip" -DestinationPath "C:/temp/pgvector"
+Copy-Item "C:/temp/pgvector/pgvector--0.7.2--0.7.2.sql" \
+  "C:/Program Files/PostgreSQL/17/share"
+Copy-Item "C:/temp/pgvector/pgvector.control" \
+  "C:/Program Files/PostgreSQL/17/share"
+
+# 2) Open pgAdmin → select the `vocab_platform` database →
+#    Query tool → run:
+CREATE EXTENSION vector;
+#    (If you get "extension is not available", also run:
+#    CREATE EXTENSION vector SCHEMA public;)
+```
+
+### Windows (older than PowerShell 5.1) / manual notes
+
+- If `winget` is not available, install it from
+  <https://github.com/microsoft/winget-cli>, or use the Node.js, Python,
+  and PostgreSQL *standalone installers* instead (tick "Add to PATH").
+- The `uv` installer uses PowerShell; if blocked by execution policy, run
+  `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
+  once, then retry.
+
+### Mac / Linux
+
+```bash
+# 1) Node.js 22+ (https://nodejs.org/)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -   # Debian/Ubuntu
+sudo apt-get install -y nodejs
+
+# 2) pnpm
+npm install -g pnpm
+
+# 3) Python 3.12+ (usually preinstalled on macOS; on Ubuntu: sudo apt install python3.12)
+python3 --version
+
+# 4) uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 5) PostgreSQL 17 + pgvector
+sudo apt-get install -y postgresql-17 postgresql-17-pgvector   # Debian/Ubuntu
+#    or: brew install postgresql@17 pgvector                   # macOS
+
+# 6) Git
+sudo apt-get install -y git          # Debian/Ubuntu
+brew install git                     # macOS
+```
 
 ---
 
@@ -41,12 +120,15 @@ from the defaults (`postgres` / `postgres` @ `localhost:5432`).
 
 ---
 
-## 4. Database (schema + vector extension)
+## 4. Database (create + vector extension)
 
 ```bash
 createdb -U postgres vocab_platform
 psql -U postgres -d vocab_platform -c "CREATE EXTENSION vector;"
 ```
+
+> If `psql` is not on your `PATH`, start it from the PostgreSQL `bin`
+> folder, e.g. `C:/Program Files/PostgreSQL/17/bin/psql`.
 
 ---
 
@@ -154,13 +236,18 @@ test`, 7 tests) exercises the full workflow against the real stack.
 | Symptom | Fix |
 |---|---|
 | `password authentication failed` | Check `DATABASE_URL` in `.env`; PostgreSQL running. |
-| `type "vector" does not exist` | Run `CREATE EXTENSION vector;` on the DB. |
+| `type "vector" does not exist` | Run `CREATE EXTENSION vector;` on the DB; confirm the `vector` extension files are in `share` and on `search_path`. |
 | `pg_dump`/`pg_restore` not found | Set `PG_BIN` to the PostgreSQL `bin` directory. |
-| Search returns nothing | Broaden filters; the corpus is sense-level, so very specific phrases match fewer senses. |
-| Semantic search slowest on first query | Embedding model loads on first use (~260 ms/query on CPU); repeats are cached. |
+| Search returns nothing | Broaden filters; the corpus is sense-level, so a very specific phrase may match fewer senses. |
+| Semantic search slowest on first query | The embedding model loads on first use (~260 ms/query on CPU); repeats are cached. |
 | Backup task did not run | Open Task Scheduler (Windows) or `crontab -l` (Unix); confirm the interpreter path and `PG_BIN` are valid in the scheduled context. |
 | `Cannot find path .env.example` | You ran the `cp` inside `backend/`. It lives at the **repo root**. |
-| `ensurepip`/`uv sync` fails | Install Python 3.12+ or run `uv self update`; on Windows use the official installer. |
+| `uv: command not found` | Add `uv`'s bin dir to `PATH` (Windows: `%USERPROFILE%\.local\bin`). |
+| `node: command not found` | Node was not added to `PATH`; restart the terminal. |
+| `pnpm: command not found` | Run `npm install -g pnpm` (Node + npm on `PATH`). |
+| `createdb: not found` | The PostgreSQL client tools are not on `PATH`; set `PG_BIN` or add the `bin` folder to `PATH`. |
+| `extension vector not available` | `CREATE EXTENSION vector SCHEMA public;` or check `shared_preload_libraries`/`pgvector` build. |
+| `pip` / `ensurepip` errors on `uv sync` | Install Python 3.12+; on Windows use the official installer with "Add Python to PATH" checked. |
 
 ---
 
@@ -181,15 +268,3 @@ test`, 7 tests) exercises the full workflow against the real stack.
 8. **Shortcuts** (`/settings/shortcuts`) — change keys, save.
 9. **Backup scheduler** — Task Scheduler task `VocabPlatformBackup` (or
    `crontab -l`).
-
----
-
-## 13. Where to read more
-
-| Document | Contents |
-|---|---|
-| `README.md` | Quick start and repository overview |
-| `documentation.md` | Project overview, features, setup, troubleshooting |
-| `plan.md` | Phase-by-phase implementation plan |
-| `docs/backups.md` | Backup / retention / restore / automatic scheduling |
-| `decision.md` | Architecture decisions (local-only scope, D007 confidence threshold, etc.) |

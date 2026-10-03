@@ -210,10 +210,9 @@ pnpm install
 Start the backend in one terminal and the frontend in another:
 
 ```bash
-# terminal 1  (clone the absolute path: set PYTHONPATH so `pipeline` imports)
+# terminal 1
 cd backend
-$env:PYTHONPATH = "D:/CS/Projects/English-Polish Vocabulary Platform/teacher-vocabulary-platform"
-uv run uvicorn app.main:app --reload --port 8000
+PYTHONPATH=.. uv run uvicorn app.main:app --reload --port 8000
 
 # terminal 2
 cd frontend
@@ -221,12 +220,18 @@ pnpm dev      # http://localhost:3000
 ```
 
 > If the backend fails with `ModuleNotFoundError: No module named 'pipeline'`,
-> the repo root path above must be on `PYTHONPATH` at runtime. Rewrite
-> the `uv run` line as:
+> the repo root must be on `PYTHONPATH` at runtime. Run instead:
 
 ```bash
 cd backend
-$env:PYTHONPATH = "D:/CS/Projects/English-Polish Vocabulary Platform/teacher-vocabulary-platform"
+PYTHONPATH=.. uv run uvicorn app.main:app --reload --port 8000
+```
+
+> If that still fails, set `PYTHONPATH` explicitly to the project root:
+
+```bash
+cd backend
+$env:PYTHONPATH = ".."
 uv run uvicorn app.main:app --reload --port 8000
 ```
 

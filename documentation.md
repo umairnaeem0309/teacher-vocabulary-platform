@@ -122,6 +122,29 @@ from the defaults (`postgres` / `postgres` @ `localhost:5432`).
 
 ## 4. Database (create + vector extension)
 
+### Windows: add PostgreSQL `bin` to `PATH` first
+The PostgreSQL client tools (`createdb`, `psql`, `pg_dump`, `pg_restore`)
+are **not** on the system `PATH` by default. Open **PowerShell as
+Administrator** once, then run:
+
+```powershell
+# 1) Find what you installed (usually C:\Program Files\PostgreSQL\17)
+Get-ChildItem 'C:\Program Files\PostgreSQL' -Directory
+
+# 2) Add it to this session's PATH
+$env:PG_BIN = "C:\Program Files\PostgreSQL\<VERSION>\bin"
+$env:Path += ";" + $env:PG_BIN
+
+# 3) Verify
+createdb --version
+psql --version
+```
+
+> Optional but cleaner: permanently add the same `bin` folder to your
+> system `PATH` (Settings → System → About → Advanced system settings →
+> Environment Variables → Path → Edit → New). Then start a **new** terminal
+> and run the three commands in §4 without `PG_BIN`.
+
 ```bash
 createdb -U postgres vocab_platform
 psql -U postgres -d vocab_platform -c "CREATE EXTENSION vector;"

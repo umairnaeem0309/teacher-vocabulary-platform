@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "English-Polish Vocabulary Teaching & FSRS Platform - backend API"
 requires-python = ">=3.12"
 dependencies = [
+    "pipeline @ file:///D:/CS/Projects/English-Polish Vocabulary Platform/teacher-vocabulary-platform/pipeline",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "pydantic>=2.9.0",
@@ -18,51 +19,9 @@ dependencies = [
     "fsrs>=6.3.2",
     "openpyxl>=3.1.5",
     "python-multipart>=0.0.32",
+    "pipeline",
 ]
 
-[dependency-groups]
-dev = [
-    "pytest>=8.3.0",
-    "httpx>=0.28.0",
-    "ruff>=0.8.0",
-    "mypy>=1.13.0",
-]
-mypy-stubs = [
-    "types-openpyxl>=3.1.5.20260827",
-]
+[tool.uv.sources]
+pipeline = { path = "../pipeline" }
 
-[tool.uv]
-# Plain `uv sync` (README) must install the type stubs too, otherwise
-# `mypy app` fails with import-untyped on openpyxl after a fresh sync.
-default-groups = ["dev", "mypy-stubs"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "W"]
-ignore = ["B008"]  # FastAPI Depends() in defaults is idiomatic
-
-[tool.mypy]
-python_version = "3.12"
-strict = false
-warn_unused_ignores = true
-disallow_untyped_defs = true
-plugins = []
-# App modules import the repo-root `pipeline` package (search engine,
-# storage writers); tests import it via pythonpath already.
-mypy_path = [".."]
-# The construction pipeline was built and gated outside the backend's
-# mypy graph (its own Phase 4-6 gates); modules reached transitively
-# from app (e.g. identity via the Phase 22 import service) are treated
-# as typed but not re-checked here.
-[[tool.mypy.overrides]]
-module = "pipeline.*"
-follow_imports = "silent"
-follow_imports_for_stubs = true
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = [".", ".."]
-addopts = "-q"

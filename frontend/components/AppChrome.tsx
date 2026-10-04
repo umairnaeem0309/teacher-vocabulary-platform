@@ -32,6 +32,11 @@ interface NavItem {
 }
 
 const ICON = {
+  // Intrinsic size baked into the markup: even if the Tailwind utilities
+  // below are missing from a stale CSS bundle, the icons stay 18×18
+  // (browser default for a viewBox-only SVG is ~240px wide).
+  width: 18,
+  height: 18,
   className: "h-[18px] w-[18px] shrink-0",
   viewBox: "0 0 24 24",
   fill: "none",

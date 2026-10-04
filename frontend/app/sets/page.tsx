@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-import { SessionBar } from "@/components/SessionBar";
 import { ApiError } from "@/lib/api";
 import { ROUTES } from "@/lib/routes";
 import { createSet, deleteSet, listSets } from "@/lib/sets-client";
@@ -48,7 +47,6 @@ export default function SetsPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6">
-      <SessionBar />
       <h1 className="text-xl font-semibold">Vocabulary sets</h1>
 
       <form className="mt-4 flex flex-wrap items-end gap-2" onSubmit={onSubmit}>

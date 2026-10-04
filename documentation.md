@@ -235,8 +235,27 @@ $env:PYTHONPATH = ".."
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
-On first launch the app opens a one-time **bootstrap** window where you
-create the single teacher account; afterwards, log in normally.
+On first launch there is no account yet. Open `http://localhost:3000` — it
+forwards straight to `/login`. Click **Create the first teacher account**,
+fill in display name, email and password (min. 10 characters); the form
+calls `POST /api/v1/auth/bootstrap`, a window the backend keeps open **only
+until the first teacher exists** (afterwards it answers `403
+bootstrap_closed` and the form falls back to sign-in). Thereafter sign in
+normally at `/login`.
+
+> **Restored a `data/backups/*.dump`?** The teacher from that dump already
+> exists, so the create window is closed — sign in with the account the dump
+> was made with (the acceptance seed account is `acceptance@example.com` /
+> `acceptance-teacher-Passw0rd!`).
+>
+> **Prefer your own account instead?** Reopen the create window by removing
+> the existing teacher (also removes teacher-owned rows — students, sets,
+> review history; the vocabulary corpus is untouched):
+>
+>     psql -U postgres -d vocab_platform -v ON_ERROR_STOP=1 -f scripts/reset_teachers.sql
+>
+> then refresh `/login` and use **Create the first teacher account**.
+> Recover anything you miss by restoring the dump again (§6).
 
 Health check: `curl http://localhost:8000/api/v1/health`
 → `{"status":"ok","database":"up", ...}`.
@@ -266,7 +285,9 @@ cd frontend && pnpm exec tsc --noEmit && pnpm exec eslint . && pnpm exec vitest 
 
 Expected: backend **379 passed**, frontend type-check and lint clean,
 unit tests **27 passed**. The Playwright suite (`pnpm exec playwright
-test`, 7 tests) exercises the full workflow against the real stack.
+test`, 9 tests) exercises the full workflow against the real stack —
+including a navigation/endpoint sweep (`e2e/navigation.spec.ts`) that
+walks every sidebar route and calls every read endpoint the UI uses.
 
 ---
 
@@ -274,6 +295,10 @@ test`, 7 tests) exercises the full workflow against the real stack.
 
 | Symptom | Fix |
 |---|---|
+| `404` on auth calls | Every API path is versioned — use `POST /api/v1/auth/bootstrap`, `POST /api/v1/auth/login`, `GET /api/v1/auth/session`. |
+| Sign-in fails right after a dump restore | The dump already contains a teacher, so bootstrap is closed (`403 bootstrap_closed`) and only that account can sign in — see §8. |
+| CORS / "failed to fetch" from the browser | Open the app at `http://localhost:3000` (not `127.0.0.1`) and confirm `CORS_ORIGINS` and `ALLOWED_REQUEST_ORIGINS` in `.env` list that origin. |
+| Login page shows the connection error | The backend is not running — start it on port 8000 and re-check `/api/v1/health`. |
 | `password authentication failed` | Check `DATABASE_URL` in `.env`; PostgreSQL running. |
 | `type "vector" does not exist` | Run `CREATE EXTENSION vector;` on the DB; confirm the `vector` extension files are in `share` and on `search_path`. |
 | `pg_dump`/`pg_restore` not found | Set `PG_BIN` to the PostgreSQL `bin` directory. |
@@ -283,7 +308,7 @@ test`, 7 tests) exercises the full workflow against the real stack.
 | `Cannot find path .env.example` | You ran the `cp` inside `backend/`. It lives at the **repo root**. |
 | `uv: command not found` | Add `uv`'s bin dir to `PATH` (Windows: `%USERPROFILE%\.local\bin`). |
 | `node: command not found` | Node was not added to `PATH`; restart the terminal. |
-| `pnpm: command not found` | Run `npm install -g pnpm` (Node + npm on `PATH`). |
+| `pnpm: command not found` | Run `npm install -g pnpm`, or `corepack enable` (pnpm is pinned via `packageManager` in `frontend/package.json`); open a **new** terminal afterwards. Fallback: `npx pnpm@12.6.0 dev`. Never use `npm install` in `frontend/` — it ignores `pnpm-lock.yaml`. |
 | `createdb: not found` | The PostgreSQL client tools are not on `PATH`; set `PG_BIN` or add the `bin` folder to `PATH`. |
 | `extension vector not available` | `CREATE EXTENSION vector SCHEMA public;` or check `shared_preload_libraries`/`pgvector` build. |
 | `pip` / `ensurepip` errors on `uv sync` | Install Python 3.12+; on Windows use the official installer with "Add Python to PATH" checked. |
@@ -292,8 +317,9 @@ test`, 7 tests) exercises the full workflow against the real stack.
 
 ## 12. Quick day-to-day demo flow
 
-1. **Login** (`/login`) — teacher account.
-2. **Dashboard** (`/dashboard`) — who needs review next (overdue → due → name).
+1. **Login** (`/login`) — teacher account; sign-in lands on the **Dashboard**.
+2. **Dashboard** (`/dashboard`) — KPI totals, who needs review next (overdue →
+   due → name), quick links to every area, and a live API/database status card.
 3. **Vocabulary** (`/vocabulary`) — type a topic phrase, switch `lexical` /
    `semantic` / `hybrid`, change sort, use the filter facets.
 4. **Translation availability** (`translation_availability` filter):

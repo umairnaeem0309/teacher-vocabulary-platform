@@ -1,41 +1,39 @@
-import Link from "next/link";
+"use client";
 
-import { ROUTE_DEFINITIONS, ROUTES } from "@/lib/routes";
+import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
+import { ROUTES } from "@/lib/routes";
+import { fetchSession } from "@/lib/search-client";
+
+/**
+ * Entry route: land on the workbench, not on the phase manifest.
+ *
+ * Resolves GET /api/v1/auth/session once, then forwards — authenticated
+ * teachers to the dashboard, everyone else to the sign-in page. A backend
+ * that is down counts as signed out so the teacher still reaches /login
+ * (the form surfaces the connection error on submit).
+ */
 export default function Home() {
+  const router = useRouter();
+  const session = useQuery({
+    queryKey: ["auth", "session"],
+    queryFn: fetchSession,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!session.isFetched) return;
+    router.replace(session.data?.teacher ? ROUTES.dashboard : ROUTES.login);
+  }, [session.isFetched, session.data, router]);
+
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
-      <h1 className="text-2xl font-semibold">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-2">
+      <h1 className="text-xl font-semibold">
         English&ndash;Polish Vocabulary Platform
       </h1>
-      <p className="mt-2 text-sm text-neutral-600">
-        Teacher workstation for vocabulary discovery, assignment and FSRS-based
-        review. Phase 1: route structure in place; feature UIs land phase by
-        phase (see plan.md).
-      </p>
-      <ul className="mt-8 space-y-1 text-sm">
-        {ROUTE_DEFINITIONS.map((route) => (
-          <li key={route.path} className="flex items-baseline gap-3">
-            <Link
-              href={route.path.replace("[senseId]", "demo").replace("[studentId]", "demo").replace("[setId]", "demo")}
-              className="font-mono text-blue-700 underline decoration-dotted"
-            >
-              {route.path}
-            </Link>
-            <span className="text-neutral-500">{route.description}</span>
-            <span className="ml-auto shrink-0 text-xs text-neutral-400">
-              phase {route.phase}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-8 text-xs text-neutral-500">
-        API health:{" "}
-        <a className="underline" href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/health`}>
-          /api/v1/health
-        </a>{" "}
-        · default login route: {ROUTES.login}
-      </p>
+      <p className="text-sm text-neutral-500">Opening the workbench…</p>
     </main>
   );
 }

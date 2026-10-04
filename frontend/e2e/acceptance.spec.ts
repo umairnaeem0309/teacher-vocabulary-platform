@@ -34,7 +34,8 @@ async function login(page: Page) {
   await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/vocabulary/);
+  // Sign-in lands on the dashboard (the app's home base).
+  await expect(page).toHaveURL(/\/dashboard/);
 }
 
 test("§59 critical acceptance workflow", async ({ page }) => {
@@ -43,7 +44,12 @@ test("§59 critical acceptance workflow", async ({ page }) => {
   // 1. Login as teacher.
   await login(page);
 
-  // 2. Open the vocabulary browser (post-login landing = /vocabulary).
+  // 2. Navigate to the vocabulary browser through the sidebar navigation.
+  await page
+    .locator("aside")
+    .getByRole("link", { name: "Vocabulary", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/vocabulary/);
   await expect(page.getByRole("heading", { name: "Vocabulary" })).toBeVisible();
 
   // 3. Search "vacation".

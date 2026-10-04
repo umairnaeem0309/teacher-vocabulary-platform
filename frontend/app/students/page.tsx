@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-import { SessionBar } from "@/components/SessionBar";
 import { ApiError } from "@/lib/api";
 import { ROUTES } from "@/lib/routes";
 import { createStudent, listStudents, setStudentStatus } from "@/lib/students-client";
@@ -55,7 +54,6 @@ export default function StudentsPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6">
-      <SessionBar />
       <h1 className="text-xl font-semibold">Students</h1>
 
       <form className="mt-4 flex flex-wrap items-end gap-2" onSubmit={onSubmit}>

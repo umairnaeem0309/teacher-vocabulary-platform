@@ -78,6 +78,27 @@ export function login(email: string, password: string): Promise<TeacherSession> 
   });
 }
 
+/** Bootstrap (first-teacher) response: no session payload, just the account. */
+export interface BootstrapResult {
+  teacher: { id: string; email: string; display_name: string };
+  note: string;
+}
+
+/**
+ * POST /auth/bootstrap — create the very first teacher. The backend closes
+ * this window forever (403 `bootstrap_closed`) as soon as one teacher exists.
+ */
+export function bootstrap(
+  email: string,
+  password: string,
+  displayName: string,
+): Promise<BootstrapResult> {
+  return apiFetch<BootstrapResult>("/api/v1/auth/bootstrap", {
+    method: "POST",
+    body: JSON.stringify({ email, password, display_name: displayName }),
+  });
+}
+
 export function logout(): Promise<{ revoked: boolean }> {
   return apiFetch<{ revoked: boolean }>("/api/v1/auth/logout", { method: "POST" });
 }

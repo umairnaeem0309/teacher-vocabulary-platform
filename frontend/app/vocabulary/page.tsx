@@ -14,7 +14,6 @@ import { useMutation } from "@tanstack/react-query";
 
 import { FilterPanel } from "@/components/vocabulary/FilterPanel";
 import { ImportExportPanel } from "@/components/vocabulary/ImportExportPanel";
-import { SessionBar } from "@/components/SessionBar";
 import { ApiError } from "@/lib/api";
 import { assignSenses } from "@/lib/assignments-client";
 import { addSetItems, createSet, listSets } from "@/lib/sets-client";
@@ -223,7 +222,6 @@ function VocabularyPage() {
 
   return (
     <main className="mx-auto max-w-[110rem] px-4 py-2">
-      <SessionBar />
       <h1 className="px-1 text-xl font-semibold">Vocabulary</h1>
       <div className="mt-2 flex gap-4">
         <FilterPanel
@@ -355,7 +353,8 @@ function VocabularyPage() {
             )}
           </div>
 
-          <table className="mt-2 w-full border-collapse text-sm">
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-neutral-300 text-left">
@@ -420,7 +419,8 @@ function VocabularyPage() {
                 </tr>
               )}
             </tbody>
-          </table>
+            </table>
+          </div>
 
           <div className="mt-2 flex items-center justify-between text-sm">
             <span className="text-neutral-500">

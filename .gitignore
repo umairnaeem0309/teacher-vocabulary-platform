@@ -61,3 +61,22 @@ Thumbs.db
 # --- Logs ---
 *.log
 logs/
+
+
+# docs
+architecture.md
+current-state.md
+data/
+decision.md
+docs/
+frontend/AGENTS.md
+frontend/CLAUDE.md
+frontend/README.md
+frontend/components/AppChrome.tsx
+frontend/e2e/navigation.spec.ts
+master.md
+master_prompt.md
+pipeline/README.md
+pipeline/pyproject.toml
+requiremnts.txt
+scripts/reset_teachers.sql

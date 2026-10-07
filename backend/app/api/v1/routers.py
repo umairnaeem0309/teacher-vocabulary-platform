@@ -3,11 +3,17 @@
 The app factory includes every router listed here under ``/api/v1``. Add a
 domain by creating its module and exporting its ``router`` — never by
 growing a giant shared router.
+
+The Phase-1 `admin` placeholder router (an honest 501 stub for
+`POST /admin/bootstrap`) is gone: bootstrap shipped in Phase 15 and lives
+at `POST /auth/bootstrap` (`auth_router`), so the stub had become a route
+that returned 501 forever for an endpoint that already existed elsewhere.
+With that removed, every phase in ``plan.md`` is shipped and the API
+carries no `not_implemented` placeholder routes.
 """
 
 from fastapi.routing import APIRouter
 
-from app.api.v1.admin import router as admin_router
 from app.api.v1.assignments import router as assignments_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.dashboard import router as dashboard_router
@@ -34,5 +40,4 @@ routers: list[APIRouter] = [
     fsrs_router,
     imports_router,
     exports_router,
-    admin_router,
 ]

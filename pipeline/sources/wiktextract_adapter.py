@@ -4,9 +4,20 @@ Converts raw dump lines into ``SourceLexicalRecord`` entries. Policy:
 
 - streams line by line (sections 47-48); never materializes the dump;
 - non-English records are **skipped** (expected, counted);
-- malformed JSON lines are **failed** (counted, sampled) — never silent;
+- malformed JSON lines are **failed** (counted, sampled) — never silent.
+  Every line is parsed before any filtering, precisely so a corrupt line
+  cannot hide inside a skipped one (a substring pre-filter on the language
+  field made corrupt, non-English lines silently disappear — caught by
+  `test_source_adapters`);
 - English records lacking any glossed sense are **skipped** as unusable for
   sense extraction (counted, sampled) but reported, not hidden;
+- an optional **target vocabulary** (`target_keys`) restricts the run to
+  the words the platform actually teaches. The dump holds ~1M English
+  entries; the supplied CEFR-J/NGSL/Octanove profiles cover ~8.7k. Without
+  this filter a faithful full-dump run is neither affordable (embeddings)
+  nor useful (proper nouns, single letters, non-words). Words outside the
+  target set are skipped non-destructively (counted, never deleted from
+  the source);
 - Polish translations are captured at word level exactly as the dump stores
   them; sense alignment is Phase 5's documented heuristic;
 - sense tags pass through for flag extraction (Phase 8+) and priority.
@@ -21,10 +32,27 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from pipeline.normalize.clean import search_key
 from pipeline.records import AdapterRun, _clean
 
 SOURCE_KEY = "wiktextract"
 MAX_ERRORS_KEPT = 100
+
+
+def _usable_headword(word: str) -> bool:
+    """Is this entry title usable as a vocabulary headword?
+
+    Wiktionary also carries apostrophe/hyphen forms (`'at`, `-ability`) and
+    ampersand forms (`A. & M.`). Their search keys collide with the plain
+    word (`at`, `ability`, `a m`), so a key-only match pulls them in as
+    headwords that read as junk in the table and cannot be typed exactly
+    (`websearch_to_tsquery('simple', "'at")` never matches the row). Both
+    classes are rejected at the source rather than cleaned up downstream.
+    """
+    if not word:
+        return False
+    first = word[0]
+    return first.isalnum() and "&" not in word
 
 
 @dataclass
@@ -90,8 +118,19 @@ def _extract_polish(payload: dict[str, Any]) -> list[str]:
     return out
 
 
-def adapt_wiktextract(path: Path, max_records: int | None = None) -> AdapterRun:
-    """Stream the dump and produce normalized English lexical records."""
+def adapt_wiktextract(
+    path: Path,
+    max_records: int | None = None,
+    target_keys: set[str] | None = None,
+) -> AdapterRun:
+    """Stream the dump and produce normalized English lexical records.
+
+    ``target_keys``: normalized ``search_key`` values of the words the
+    platform teaches (the supplied CEFR/NGSL profiles). When given, English
+    entries outside the set are skipped before their senses are extracted,
+    so memory stays proportional to the target vocabulary rather than the
+    ~1M English entries in the dump.
+    """
     run = AdapterRun(source=SOURCE_KEY)
 
     for line_number, line in _iter_lines(path):
@@ -112,6 +151,13 @@ def adapt_wiktextract(path: Path, max_records: int | None = None) -> AdapterRun:
             continue
 
         word = _clean(payload.get("word"))
+        if not _usable_headword(word):
+            run.stats.skipped += 1
+            continue
+        if target_keys is not None and search_key(word) not in target_keys:
+            run.stats.skipped += 1
+            continue
+
         senses = _extract_senses(payload)
         if not word or not senses:
             run.stats.skipped += 1

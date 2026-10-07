@@ -62,8 +62,16 @@ describe("stateToParams / paramsToState", () => {
 
   it("ignores unknown modes and sorts", () => {
     const state = paramsToState(new URLSearchParams("mode=bogus&sort=bogus"));
-    expect(state.mode).toBe("lexical");
-    expect(state.sort).toBe("headword");
+    // Falls back to the documented defaults: hybrid relevance search.
+    expect(state.mode).toBe("hybrid");
+    expect(state.sort).toBe("relevance");
+  });
+
+  it("defaults to the searching teacher's view, not a browse", () => {
+    // The semantic and taxonomy layers are only reachable through
+    // hybrid + relevance, so those must be the defaults.
+    expect(DEFAULT_TABLE_STATE.mode).toBe("hybrid");
+    expect(DEFAULT_TABLE_STATE.sort).toBe("relevance");
   });
 
   it("accepts the §21 sort keys and the §42 translation filter", () => {

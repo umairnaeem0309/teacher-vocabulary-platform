@@ -1,12 +1,11 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
 /**
- * Section 61 — SEMANTIC SEARCH ACCEPTANCE TESTS.
- *
- * Verifies semantic retrieval for every example query required by §21/§61
+ * Section 61 — SEMANTIC SEARCH ACCEPTANCE TESTS. *
+ *     Verifies semantic retrieval for every example query required by §21/§61
  * ("vacation", "cooking", "airport problems", "hotel problems", "things
  * needed when traveling", "describing personality") against the real
- * corpus — 41k+ senses with bge-m3 embeddings built by the pipeline, not
+ * corpus — 71k+ senses with bge-m3 embeddings built by the pipeline, not
  * synthetic fixtures — and then that
  *
  *     semantic search + CEFR + priority + student + not assigned
@@ -99,6 +98,35 @@ test("§61 semantic retrieval works for every example query", async ({
 }) => {
   test.setTimeout(300_000);
 
+  // Representative data: the CORPUS (not a handful of rows) backs the
+  // vector search (§62: never benchmark/test against ten records).
+  //
+  // Asserted once, against the catalogue itself: an empty query is a
+  // filtered browse, so its total IS the corpus size (measured 2026-10-07:
+  // 71,157 senses after the Phase 31 rebuild; a ten-record fixture fails
+  // this by four orders of magnitude).
+  //
+  // This used to be asserted per query as `total > 1000`, which was only
+  // ever true while `total` was the whole-corpus count for ANY query (the
+  // Phase 14 bug this suite's §61 work fixed). Now that totals are honest,
+  // a semantic total is the number of senses within the cosine cutoff of
+  // that particular query — a density measure, not a corpus measure. The
+  // measured values (2026-10-07, full 71k embeddings, after D032 scoped the
+  // semantic channel to vocabulary POS): vacation 1,435; cooking 17,627;
+  // airport problems 213; hotel problems 193; things needed when traveling
+  // 5,600; describing personality 9,608. Density legitimately varies by an
+  // order of magnitude, and the multi-word "problems" queries sit lowest
+  // while scoring the MOST relevant top hits (hotel problems: 11/12) — so
+  // the per-query floor only has to separate "millions of vectors behind
+  // this" from fixture scale.
+  const catalogue = await search(request, {
+    query: "",
+    mode: "hybrid",
+    sort: "relevance",
+    limit: 1,
+  });
+  expect(catalogue.total, "corpus size").toBeGreaterThan(10_000);
+
   for (const { query, relevant } of CASES) {
     const result = await search(request, {
       query,
@@ -108,9 +136,9 @@ test("§61 semantic retrieval works for every example query", async ({
     });
 
     expect(result.mode, query).toBe("semantic");
-    // Representative data: the corpus (not a handful of rows) backs the
-    // vector search (§62: never benchmark/test against ten records).
-    expect(result.total, `${query}: corpus size`).toBeGreaterThan(1_000);
+    expect(result.total, `${query}: corpus-backed neighbours`).toBeGreaterThan(
+      100,
+    );
     expect(result.hits.length, `${query}: results returned`).toBeGreaterThanOrEqual(
       8,
     );

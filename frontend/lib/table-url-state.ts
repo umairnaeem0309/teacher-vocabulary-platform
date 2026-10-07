@@ -19,10 +19,22 @@ export interface TableState {
 
 export const DEFAULT_PAGE_SIZE = 50;
 
+/**
+ * Defaults are the *searching* teacher's view, not the browsing one:
+ * relevance order over the hybrid (lexical + semantic + topic) engine.
+ *
+ * This used to be `lexical` + `headword`, which silently disabled the whole
+ * semantic and taxonomy layers — a query came back in alphabetical order
+ * (`travel` -> airsick, astral, basket, ...) and a topic query could never
+ * reach the vocabulary of that topic. Query-less browsing is unaffected: the
+ * page maps relevance-on-an-empty-query to `priority` (see `effectiveSort`
+ * in app/vocabulary/page.tsx), so the browse path stays a deterministic
+ * SQL-ordered scan with no embedding call.
+ */
 export const DEFAULT_TABLE_STATE: TableState = {
   query: "",
-  mode: "lexical",
-  sort: "headword",
+  mode: "hybrid",
+  sort: "relevance",
   filters: EMPTY_FILTERS,
   page: 0,
   pageSize: DEFAULT_PAGE_SIZE,

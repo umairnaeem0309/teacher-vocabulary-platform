@@ -29,7 +29,9 @@ def _csv(value: str) -> list[str]:
 
 @router.get("")
 def browse_vocabulary(
-    query: str = Query("", max_length=300),
+    # Matches the POST /search limit: a query long enough to be rejected
+    # here but accepted there would make the two entry points disagree.
+    query: str = Query("", max_length=2000),
     mode: str = Query("lexical", description="hybrid | lexical | semantic"),
     sort: str = Query(
         "headword",

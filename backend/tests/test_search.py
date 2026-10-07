@@ -25,9 +25,11 @@ from pipeline.enrich.embeddings import embed_text, text_sha256
 from pipeline.search.engine import (
     PREFIX_BONUS,
     RRF_K,
+    SEMANTIC_POS,
     W_LEXICAL,
     W_METADATA,
     W_SEMANTIC,
+    W_TOPIC,
     hybrid_score,
     metadata_bonus,
     rrf,
@@ -65,17 +67,32 @@ class TestRankingUnits:
         assert metadata_bonus(None, "MEDIUM") == 0.0
 
     def test_hybrid_score_weights(self) -> None:
-        # Documented blend: 0.60 lexical + 0.35 semantic + 0.05 metadata.
-        assert pytest.approx(1.0) == W_LEXICAL + W_SEMANTIC + W_METADATA
+        # Documented blend: 0.50 lexical + 0.25 semantic + 0.20 topic
+        # + 0.05 metadata.
+        assert pytest.approx(1.0) == (
+            W_LEXICAL + W_SEMANTIC + W_TOPIC + W_METADATA
+        )
         lex_rank, sem_rank = 3, 7
         expected = (
             W_LEXICAL * rrf(lex_rank)
             + W_SEMANTIC * rrf(sem_rank)
             + W_METADATA * 0.0
         )
+        # Omitting topic_rank reproduces the pre-topic-channel blend exactly
+        # (the channel contributes nothing when the query matches no category).
         assert hybrid_score(lex_rank, sem_rank, None, None) == pytest.approx(
             expected
         )
+        assert hybrid_score(lex_rank, sem_rank, None, None, topic_rank=None) == (
+            pytest.approx(expected)
+        )
+
+    def test_topic_channel_contributes(self) -> None:
+        """The taxonomy channel must move the score, not act as decoration."""
+        without = hybrid_score(5, 5, None, None)
+        with_topic = hybrid_score(5, 5, None, None, topic_rank=1)
+        assert with_topic > without
+        assert with_topic - without == pytest.approx(W_TOPIC * rrf(1))
 
     def test_hybrid_score_prefix_floor(self) -> None:
         # A prefix lexical hit earns PREFIX_BONUS on top of its RRF term;
@@ -368,6 +385,10 @@ def _sample_embedded_sense() -> dict[str, object] | None:
     that can reproduce the stored sha, since PG keeps a truncated
     definition_preview, not the full gloss. Verifying the sha here proves
     the reconstruction is exact before we use it as a semantic probe.
+
+    Restricted to SEMANTIC_POS: the probe must be a sense the semantic
+    channel can actually return, otherwise the self-match assertion below
+    tests a row the channel deliberately scopes out.
     """
     from pipeline.storage.sqlite_store import ConstructionStore
 
@@ -383,10 +404,12 @@ def _sample_embedded_sense() -> dict[str, object] | None:
                     FROM sense_embeddings se
                     JOIN vocabulary_senses vs ON vs.id = se.sense_id
                     WHERE vs.headword <> ''
+                      AND vs.part_of_speech::text = ANY(:sem_pos)
                     ORDER BY vs.headword_normalized
                     LIMIT 400
                     """
-                )
+                ),
+                {"sem_pos": list(SEMANTIC_POS)},
             ).mappings().all()
         for row in rows:
             key = row["sense_key"]
@@ -445,6 +468,42 @@ class TestSemanticAndHybrid:
         assert str(embedded_sense["id"]) in top_ids, "self must rank in top-10"
         self_hit = next(h for h in hits if h["sense_id"] == str(embedded_sense["id"]))
         assert self_hit["semantic_distance"] == pytest.approx(0.0, abs=1e-2)
+
+    def test_semantic_channel_is_scoped_to_vocabulary_pos(
+        self, client: TestClient, embedded_sense: dict[str, object]
+    ) -> None:
+        """No semantic neighbour comes from the `other` (catch-all) POS.
+
+        SEMANTIC_POS is a recipe/corpus-quality rule: BGE-M3 puts
+        closed-class and proper-name senses near the corpus centroid, so
+        they land inside the cosine cutoff of any query and cannot be
+        separated from real neighbours by distance (see the engine
+        comment and D031). The lexical channel is unaffected.
+        """
+        assert "other" not in SEMANTIC_POS
+        resp = client.post(
+            "/api/v1/vocabulary/search",
+            json={
+                "mode": "semantic",
+                "query": str(embedded_sense["headword"]),
+                "limit": 50,
+            },
+        )
+        assert resp.status_code == 200
+        hits = resp.json()["hits"]
+        assert hits, "sanity: the probe query has semantic neighbours"
+        for h in hits:
+            assert h["part_of_speech"] in SEMANTIC_POS, (
+                f"{h['headword']} ({h['part_of_speech']}) is outside the "
+                "semantic scope"
+            )
+        # The same senses remain reachable lexically (§20 layer 1).
+        lexical = client.post(
+            "/api/v1/vocabulary/search",
+            json={"mode": "lexical", "query": "on", "limit": 20},
+        )
+        assert lexical.status_code == 200
+        assert lexical.json()["total"] > 0, "`on` must still be lexically findable"
 
     def test_hybrid_blends_both_layers(
         self, client: TestClient, embedded_sense: dict[str, object]

@@ -136,6 +136,29 @@ class Checkpoint:
         )
 
 
+def configure_torch_threads() -> int:
+    """Give encoding every available core (section 48).
+
+    torch defaults to half the logical CPUs on this machine (4 of 8), which
+    measured ~0.65 senses/sec. Using all cores measured 2.5-2.8 senses/sec for
+    identical work — the difference between a ~20-hour and a ~5-hour corpus
+    rebuild, and it also cuts cold query-embedding latency. Construction-time
+    measurement, not a guess: `scripts/phase45_rebuild_corpus.py` and Phase 12
+    both encode on CPU (D014: no GPU on this machine).
+
+    Override the core count with EMBEDDING_THREADS (e.g. to keep a server's
+    request threads free while a construction job runs).
+    """
+    import os
+
+    import torch
+
+    raw = os.environ.get("EMBEDDING_THREADS", "").strip()
+    threads = int(raw) if raw.isdigit() and int(raw) > 0 else (os.cpu_count() or 1)
+    torch.set_num_threads(threads)
+    return threads
+
+
 class EmbeddingModel:
     """Lazy BGE-M3 encoder; loads on first use (heavy), cached thereafter."""
 
@@ -156,6 +179,7 @@ class EmbeddingModel:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
+            configure_torch_threads()
             self.cache_folder.mkdir(parents=True, exist_ok=True)
             self._model = SentenceTransformer(
                 self.model_name,

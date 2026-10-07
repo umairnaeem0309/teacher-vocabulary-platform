@@ -64,9 +64,21 @@ test("§59 critical acceptance workflow", async ({ page }) => {
   await modeSelect.selectOption("semantic");
 
   // 4. Receive relevant semantic results (first query loads the model).
+  //
+  // The cold BGE-M3 load takes 60-90 s on this machine, and while a request
+  // is in flight the page shows `0 senses…` (the `…` IS the loading marker)
+  // and a single "Loading…" placeholder row that is *also* a `tbody tr`. So
+  // the naive waits (`tbody tr` visible, `/[\d,]+ senses/`) both resolve
+  // immediately and the workflow then races the model load — measured here:
+  // §59 flaked with the table still on its placeholder and the checkbox
+  // click timing out. Wait for the settled count (no trailing ellipsis) and
+  // for a row that actually carries a checkbox.
   const rows = page.locator("tbody tr");
-  await expect(rows.first()).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByText(/[\d,]+ senses/)).toBeVisible();
+  const dataRows = rows.filter({
+    has: page.locator("input[type='checkbox']"),
+  });
+  await expect(page.getByText(/^[\d,]+ senses$/)).toBeVisible({ timeout: 150_000 });
+  await expect(dataRows.first()).toBeVisible({ timeout: 150_000 });
 
   // 5. Filter TRAVEL.
   const categoryGroup = await openGroup(page, /^Category/);
@@ -98,13 +110,13 @@ test("§59 critical acceptance workflow", async ({ page }) => {
   await notAssigned.click();
   await expect(notAssigned).toBeChecked();
 
-  // 10. Select multiple senses.
-  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-  const rowCount = await rows.count();
+  // 10. Select multiple senses (data rows only — never the loading row).
+  await expect(dataRows.first()).toBeVisible({ timeout: 60_000 });
+  const rowCount = await dataRows.count();
   expect(rowCount).toBeGreaterThanOrEqual(1);
   const selectCount = Math.min(3, rowCount);
   for (let i = 0; i < selectCount; i++) {
-    const box = rows.nth(i).locator("input[type='checkbox']");
+    const box = dataRows.nth(i).locator("input[type='checkbox']");
     await box.click();
     await expect(box).toBeChecked();
   }

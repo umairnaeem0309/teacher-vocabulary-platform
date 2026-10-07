@@ -14,12 +14,19 @@ Four layers per the specification:
   client-side filtering of a small result set, so filters compose in SQL.
 - Layer 3 (semantic): the teacher's query is embedded once (BGE-M3) and
   compared against precomputed sense embeddings via pgvector HNSW
-  (`<=>` cosine). Never embeds rows at search time (§20).
+  (`<=>` cosine), bounded by a cosine cutoff so a neighbour is a neighbour
+  and not merely the nearest row. Never embeds rows at search time (§20).
+- Layer 3b (topic): the query is matched against the taxonomy (category
+  keys and names, with a bounded prefix rule) and the matched subtrees'
+  senses become a candidate channel. This is what makes a topic query
+  ("travel", "airport problems") return a topic's vocabulary instead of
+  only senses whose text contains the query word.
 - Layer 4 (hybrid): deterministic weighted rank
-  `score = 0.60 * lexical + 0.35 * semantic + 0.05 * metadata`, blended
-  by RRF so lexical and semantic signals are comparable before weighting;
-  metadata bonus (high-frequency + high-priority) breaks ties. Documented
-  in docs/search.md; unit-tested for determinism (§20 "must be documented").
+  `score = 0.50 * lexical + 0.25 * semantic + 0.20 * topic
+   + 0.05 * metadata`, blended by RRF so channels of unlike scale are
+  comparable before weighting; metadata bonus (high-frequency +
+  high-priority) breaks ties. Documented in docs/search.md; unit-tested
+  for determinism (§20 "must be documented").
 
 Both signals are computed against the SAME base filter set (§22: filtering
 is not applied after the fact to a truncated candidate list).
@@ -41,18 +48,82 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
+from pipeline.normalize.clean import search_key
+
 # ---- Ranking constants (docs/search.md is the prose spec of these) --------
 RRF_K = 60  # standard RRF constant
-W_LEXICAL = 0.60
-W_SEMANTIC = 0.35
+W_LEXICAL = 0.50
+W_SEMANTIC = 0.25
+W_TOPIC = 0.20
 W_METADATA = 0.05
 # Metadata relevance: frequency rank <= 3000 is "common vocabulary";
 # priority levels from prio-v1.1 (section 16).
 COMMON_RANK_MAX = 3000
+# Adaptive HNSW walk (D014 measured): the count above is exact, but the
+# page fetch goes through the HNSW graph with a distance post-filter, and
+# a graph grown by tens of thousands of incremental inserts loses recall —
+# a deep page can return fewer rows than the count promises (measured:
+# offset-618 fetch returned 0 rows against an exact count of 632;
+# hnsw.ef_search=800 restored 615). If the walk underfills the window,
+# retry with a wider graph walk instead of shipping a short page.
+HNSW_EF_BASE = 40
+HNSW_EF_STEPS = (200, 800)
 PRIORITY_LEVELS = ("VERY HIGH", "HIGH", "MEDIUM", "LOW", "VERY LOW")
 # Lexical prefix matches (headword/forms) must not be drowned by RRF:
 # prefix hits get a guaranteed floor added to their RRF contribution.
 PREFIX_BONUS = 0.25
+# Semantic neighbours beyond this cosine distance are noise rather than
+# neighbours (BGE-M3 vectors are L2-normalized, so distance = 1 - cos).
+# Without a cutoff every query "matches" the whole corpus, which made the
+# reported total meaningless (searching "hotel" claimed 41,690 results) and
+# let stopword-ish senses (on/at/so) rank as neighbours.
+MAX_SEMANTIC_DISTANCE = 0.55
+# Semantic channel scope: which senses may BE a semantic neighbour. This is a
+# recipe/corpus-quality rule, not a distance rule (D032).
+#
+# The corpus's `other` POS bucket is Wiktionary's catch-all: closed-class
+# grammatical senses (`on` "paid for by", `at` "in response or reaction
+# to", `an` "form of a (all article senses)", `so` "so long as") and
+# proper-name / abbreviation entries (`AIR` "station code of Airport",
+# `Castle` "a place name", `MAP` "initialism of modified American plan").
+# Neither is a vocabulary *concept*, and BGE-M3 gives them vectors near the
+# corpus centroid, so for a lone content-word query they land inside the
+# cosine cutoff of almost anything. Measured on `hotel`: `on` sat at 0.448
+# and `an` at 0.420 while the genuine neighbour `hotelier` sat at 0.443 and
+# `vacancy` at 0.422 -- the noise overlaps the valid neighbours, so no
+# distance threshold can separate them (tightening the cutoff drops
+# `hotelier` before it drops `on`). The same values held after re-embedding
+# every recipe variant tried offline (gloss-only, no-POS, 4 examples,
+# no-headword: best case moved the closest offender only to 0.461, still
+# inside the cutoff) and after every embedding-space normalisation tried
+# (corpus-mean centring, all-but-the-top k=1..8, CSLS local scaling -- each
+# either failed to separate `on` from `hotelier` or traded it for
+# place-name/abbreviation noise). Scoping the channel instead removes the
+# noise outright while relevance is preserved or improves: over the §21
+# probes `hotel` 1/14 -> 0/14 noise, `airport` 4/14 -> 6/14 relevant (the
+# `AIR`/`Airport`/`Landing` place-name senses go too), `travel`/`cooking`
+# unchanged, and `hotel`'s neighbour total drops from the inflated 646 to
+# 414 honest neighbours.
+#
+# The lexical channel is untouched: a teacher who types `on` or `AIR` still
+# finds those senses (layers 1-2 are the lookup; layer 3 is the concept
+# search). The live corpus has no NULL part_of_speech (71,149 senses: noun
+# 35,064, verb 18,667, adjective 9,620, adverb 2,159, other 5,596, phrase
+# 43), so this omits exactly the `other` bucket -- 7.9% of the corpus.
+SEMANTIC_POS = ("noun", "verb", "adjective", "adverb", "phrase")
+# Topic channel: a query token at least this long may match a category key
+# or name token by prefix (airport -> Airports) so plurals still match.
+TOPIC_PREFIX_MIN = 4
+# Thematic adjacency between taxonomy roots, applied to the topic channel.
+# Travel vocabulary and transportation vocabulary are one syllabus unit (the
+# teacher asking for "travel" expects car/plane/bus/taxi alongside hotel and
+# trip), but the taxonomy keeps them as sibling roots, so the subtree match
+# alone never reaches them. Curated and versioned like the taxonomy itself:
+# only pairs that are unambiguously one lesson are listed.
+TAXONOMY_ROOT_AFFINITY: dict[str, frozenset[str]] = {
+    "travel": frozenset({"transportation"}),
+    "transportation": frozenset({"travel"}),
+}
 
 MAX_LIMIT = 200
 
@@ -342,19 +413,12 @@ def _lexical_query(
 
     # A query-less browse must not require any tsquery hit (an empty
     # websearch_to_tsquery matches nothing).
-    match_sql = (
-        f"""
-      AND (
-        vs.fts @@ websearch_to_tsquery('simple', :q)
-        OR EXISTS (SELECT 1 FROM sense_translations st
-                   WHERE st.sense_id = vs.id AND st.fts @@ websearch_to_tsquery('simple', :q))
-        OR EXISTS (SELECT 1 FROM sense_definitions sd
-                   WHERE sd.sense_id = vs.id AND sd.fts @@ websearch_to_tsquery('simple', :q))
-        {('OR ' + prefix_or) if prefix_or else ''}
-      )"""
-        if req.query.strip()
-        else ""
-    )
+    match_sql = ""
+    if req.query.strip():
+        twin = _punctuation_twin(req.query)
+        if twin:
+            params["qnorm"] = twin
+        match_sql = "\n      AND " + _fts_disjunction(req.query, prefix_or)
 
     if ranked:
         order_sql = "lex_score DESC, vs.headword_normalized, vs.sense_key"
@@ -422,9 +486,15 @@ def _lexical_query(
     {"" if req.filters.student_id is None else _STUDENT_JOINS}
     WHERE {" AND ".join(where)}{match_sql}
     ORDER BY {order_sql}
-    LIMIT :lim OFFSET :off
+    {"LIMIT :lim" if ranked else "LIMIT :lim OFFSET :off"}
     """
-    params.update({"lim": req.limit, "off": req.offset})
+    if ranked:
+        # Ranked rows feed RRF, so fetch the whole page window and let the
+        # hybrid step paginate; an SQL OFFSET here would restart the ranks on
+        # every page and reshuffle already-seen results.
+        params.update({"lim": req.offset + req.limit})
+    else:
+        params.update({"lim": req.limit, "off": req.offset})
     rows = conn.execute(text(sql), params).mappings().fetchall()
     out = []
     for i, r in enumerate(rows, start=1):
@@ -434,21 +504,196 @@ def _lexical_query(
     return out
 
 
+# --------------------------------------------------------------------------
+# Layer 3b: topic / taxonomy search
+# --------------------------------------------------------------------------
+
+def _topic_tokens(value: str) -> list[str]:
+    """Query tokens eligible to name a taxonomy category."""
+    return [t for t in search_key(value).split() if len(t) >= 3]
+
+
+def _token_matches_category(token: str, key: str, name: str) -> bool:
+    """Does a query token name this category (key or display name)?
+
+    Exact token match, plus a bounded prefix rule so a plural or inflected
+    query still finds its category (`airport` -> Airports, `hotel` ->
+    Hotels). The prefix rule needs TOPIC_PREFIX_MIN characters so short
+    words cannot collide with unrelated category names.
+    """
+    candidates = set(key.split("-")) | set(search_key(name).split())
+    for cand in candidates:
+        if token == cand:
+            return True
+        if (
+            len(token) >= TOPIC_PREFIX_MIN
+            and len(cand) >= TOPIC_PREFIX_MIN
+            and (token.startswith(cand) or cand.startswith(token))
+        ):
+            return True
+    return False
+
+
+def _topic_category_keys(conn: Connection, query: str) -> list[str]:
+    """Taxonomy keys matched by the query, plus curated thematic roots.
+
+    Deterministic: keys are returned sorted.
+    """
+    tokens = _topic_tokens(query)
+    if not tokens:
+        return []
+    rows = conn.execute(text("SELECT key, name FROM categories")).fetchall()
+    matched: set[str] = set()
+    for key, name in rows:
+        if any(_token_matches_category(t, key, name or "") for t in tokens):
+            matched.add(key)
+    for key in list(matched):
+        matched.update(TAXONOMY_ROOT_AFFINITY.get(key, ()))
+    return sorted(matched)
+
+
+def _topic_query(
+    conn: Connection, req: SearchRequest
+) -> tuple[list[dict[str, Any]], int]:
+    """Senses in the query's taxonomy subtree, best (most common) first.
+
+    Returns (rows with _topic_rank, total senses in the matched subtrees).
+    Filters apply to the same base set as every other channel (section 22:
+    no post-hoc filtering of a truncated list).
+    """
+    keys = _topic_category_keys(conn, req.query)
+    if not keys:
+        return [], 0
+
+    where: list[str] = ["vs.is_active"]
+    params: dict[str, Any] = {"topic_keys": keys}
+    _apply_filters(conn, req.filters, where, params)
+
+    subtree = """
+        WITH RECURSIVE subtree AS (
+            SELECT id FROM categories WHERE key = ANY(:topic_keys)
+            UNION ALL
+            SELECT c.id FROM categories c JOIN subtree s ON c.parent_id = s.id
+        )
+    """
+    join_sql = "" if req.filters.student_id is None else _STUDENT_JOINS
+    base_where = (
+        " AND ".join(where)
+        + " AND vs.id IN (SELECT sc.sense_id FROM sense_categories sc "
+        "WHERE sc.category_id IN (SELECT id FROM subtree))"
+    )
+
+    total = conn.execute(
+        text(f"{subtree} SELECT count(*) FROM vocabulary_senses vs {join_sql} "
+             f"WHERE {base_where}"),
+        params,
+    ).scalar()
+
+    sql = f"""
+    {subtree}
+    SELECT vs.id
+    FROM vocabulary_senses vs
+    {join_sql}
+    WHERE {base_where}
+    ORDER BY vs.priority_score DESC NULLS LAST,
+             vs.headword_normalized, vs.sense_key
+    LIMIT :fetch
+    """
+    # Fetch the whole page window, never just the current page: topic ranks
+    # feed RRF and must not restart on every page (stable pagination).
+    params["fetch"] = req.offset + req.limit
+    rows = conn.execute(text(sql), params).mappings().fetchall()
+    out: list[dict[str, Any]] = []
+    for i, r in enumerate(rows, start=1):
+        out.append({"id": r["id"], "_topic_rank": i})
+    return out, int(total or 0)
+
+
+def _punctuation_twin(q: str) -> str:
+    """Search-key twin of the query, or '' when it must not be used.
+
+    `vocabulary_senses.fts` is a GENERATED column over
+    `headword_normalized` — the *search key* — so punctuation is stripped in
+    the index but not in the text the teacher typed:
+
+        to_tsvector('simple', 'A.M.')  -> 'a.m'
+        the A.M. row indexes           -> 'a':1 'm':2      (from `a m`)
+        to_tsvector('simple', "don't") -> 'don't'
+        the don't row indexes          -> 'dont'
+
+    A sense could therefore not match its own headword. The twin restores
+    that without touching the primary query, so `websearch_to_tsquery`'s
+    quoted phrases, `OR` and `-exclusion` syntax keep working (section 20).
+
+    Deliberately narrow: only a *single token containing punctuation* needs
+    the twin. Multi-word queries, quoted phrases and leading `-`/`!`
+    exclusions are left alone — normalizing those would rewrite the
+    teacher's query rather than repair it.
+    """
+    stripped = q.strip()
+    if not stripped or " " in stripped:
+        return ""
+    if stripped[0] in "-!\"":
+        return ""
+    if any(ch in stripped for ch in "\"'`*()"):
+        twin = search_key(stripped)
+    else:
+        return ""
+    if not twin or twin == stripped or " " in twin:
+        return ""
+    return twin
+
+
+def _fts_disjunction(q: str, prefix_or: str) -> str:
+    """The `( ... )` text-search predicate for a non-empty query."""
+    twin = _punctuation_twin(q)
+    head = "vs.fts @@ websearch_to_tsquery('simple', :q)"
+    trans = "st.fts @@ websearch_to_tsquery('simple', :q)"
+    defs = "sd.fts @@ websearch_to_tsquery('simple', :q)"
+    if twin:
+        # Bound, not interpolated: the twin is a search key (letters,
+        # digits, spaces), never query syntax.
+        head += "\n        OR vs.fts @@ websearch_to_tsquery('simple', :qnorm)"
+        trans += (
+            "\n                          OR st.fts @@ "
+            "websearch_to_tsquery('simple', :qnorm)"
+        )
+        defs += (
+            "\n                          OR sd.fts @@ "
+            "websearch_to_tsquery('simple', :qnorm)"
+        )
+    return f"""(
+        {head}
+        OR EXISTS (SELECT 1 FROM sense_translations st
+                   WHERE st.sense_id = vs.id AND {trans})
+        OR EXISTS (SELECT 1 FROM sense_definitions sd
+                   WHERE sd.sense_id = vs.id AND {defs})
+        {('OR ' + prefix_or) if prefix_or else ''}
+      )"""
+
+
 def _prefix_predicates(q: str) -> tuple[str, str, dict[str, Any]]:
     """Exact/prefix predicate over headword + forms (Layer 1 'exact/text').
 
     Returns (and_form, or_form, params): the same predicate as a WHERE
     conjunct and as a match-clause disjunct. Empty/short queries
     contribute nothing ("", {}, no binds).
+
+    The pattern is built with ``search_key`` because ``headword_normalized``
+    *is* a search key: typing `A.M.` must prefix-match `a m`, not `a.m.`.
     """
     if not q.strip():
+        return "", "", {}
+    prefix = search_key(q)
+    if not prefix:
+        # Punctuation-only query: LIKE '%' would match every row.
         return "", "", {}
     and_form = (
         "(vs.headword_normalized LIKE :pfx OR EXISTS ("
         "SELECT 1 FROM vocabulary_forms vf WHERE vf.sense_id = vs.id "
         "AND vf.form_normalized LIKE :pfx))"
     )
-    return and_form, and_form, {"pfx": q.strip().lower() + "%"}
+    return and_form, and_form, {"pfx": prefix + "%"}
 
 
 # --------------------------------------------------------------------------
@@ -482,12 +727,29 @@ def _semantic_query(
 ) -> tuple[list[dict[str, Any]], int]:
     """Nearest senses by cosine over the HNSW index, same filter set.
 
-    Returns (rows with _semantic_rank, total matching the filters).
+    Returns (rows with _semantic_rank, total senses within the cosine
+    cutoff — no longer "every sense matching the filters").
     """
     vec = embed_query(req.query)
-    where: list[str] = ["vs.is_active", "se.embedding_version = 'emb-v1'"]
-    params: dict[str, Any] = {"qv": "[" + ",".join(repr(x) for x in vec) + "]"}
+    where: list[str] = [
+        "vs.is_active",
+        "se.embedding_version = 'emb-v1'",
+        # Semantic scope (SEMANTIC_POS): only vocabulary-concept senses are
+        # eligible neighbours. Part of the same base filter set as every
+        # other predicate, so it applies to the count and the page window
+        # alike (section 22: no post-hoc filtering of a truncated list).
+        "vs.part_of_speech::text = ANY(:sem_pos)",
+    ]
+    params: dict[str, Any] = {
+        "qv": "[" + ",".join(repr(x) for x in vec) + "]",
+        "maxdist": MAX_SEMANTIC_DISTANCE,
+        "sem_pos": list(SEMANTIC_POS),
+    }
     _apply_filters(conn, req.filters, where, params)
+    # Cosine cutoff (see MAX_SEMANTIC_DISTANCE): a neighbour, not merely the
+    # nearest row. Applied to the count too, so the reported total and the
+    # page window describe the same set.
+    where.append("se.embedding <=> CAST(:qv AS vector) <= :maxdist")
 
     base_where = " AND ".join(where)
     count_sql = f"""
@@ -514,10 +776,38 @@ def _semantic_query(
     {"" if req.filters.student_id is None else _STUDENT_JOINS}
     WHERE {base_where}
     ORDER BY distance
-    LIMIT :lim OFFSET :off
+    LIMIT :fetch
     """
-    params.update({"lim": req.limit, "off": req.offset})
+    # Page window (offset + limit), not the page itself: these ranks feed RRF
+    # and must be identical on every page, otherwise paging reshuffles results.
+    params["fetch"] = req.offset + req.limit
     rows = conn.execute(text(sql), params).mappings().fetchall()
+    if len(rows) < params["fetch"] and total and total > len(rows):
+        # D014 recall rule: the exact count promises more than the index
+        # walk found. Retry with a wider graph walk so a deep page inside
+        # `total` is not starved to a short (or empty) page. Cheap when the
+        # graph is healthy (the first fetch already fills the window);
+        # ef=800 costs ~0.5-1.5s only on the underfilled pages.
+        # set_config (session) + explicit restore: SET LOCAL would depend on
+        # an explicit transaction this engine call does not own, and an
+        # unrestored session value would leak through the connection pool.
+        prior_ef = conn.execute(text("SHOW hnsw.ef_search")).scalar()
+        try:
+            want = int(params["fetch"])
+            for ef in HNSW_EF_STEPS:
+                conn.execute(
+                    text("SELECT set_config('hnsw.ef_search', :v, false)"),
+                    {"v": str(ef)},
+                )
+                rows = conn.execute(text(sql), params).mappings().fetchall()
+                if len(rows) >= want or len(rows) >= int(total):
+                    break
+        finally:
+            if prior_ef:
+                conn.execute(
+                    text("SELECT set_config('hnsw.ef_search', :v, false)"),
+                    {"v": str(prior_ef)},
+                )
     out = []
     for i, r in enumerate(rows, start=1):
         d = dict(r)
@@ -554,17 +844,33 @@ def hybrid_score(
     frequency_rank: int | None,
     priority_level: str | None,
     is_prefix: bool = False,
+    topic_rank: int | None = None,
 ) -> float:
-    """score = 0.60·lexical + 0.35·semantic + 0.05·metadata (RRF units).
+    """score = 0.50·lexical + 0.25·semantic + 0.20·topic + 0.05·metadata.
 
-    Prefix (exact) lexical matches get PREFIX_BONUS added to their
-    lexical contribution so an exact headword hit cannot lose to a
-    thesaurus-style semantic hit in normal queries.
+    All four terms are reciprocal-rank units, so the weights compare
+    channels that are not directly comparable (measured rank quality).
+
+    - Prefix (exact) lexical matches get PREFIX_BONUS added to their
+      lexical contribution so an exact headword hit cannot lose to a
+      thesaurus-style semantic hit in normal queries.
+    - The topic term is the taxonomy channel: it is what turns a headword
+      query into a topical browse, so it carries real weight rather than
+      acting as a tie-break. It is 0 for queries that match no category.
+
+    `topic_rank` is keyword-only for callers written before the channel
+    existed; omitting it reproduces the three-channel blend exactly.
     """
     lex = rrf(lex_rank) + (PREFIX_BONUS if (is_prefix and lex_rank) else 0.0)
     sem = rrf(sem_rank)
+    top = rrf(topic_rank)
     meta = metadata_bonus(frequency_rank, priority_level)
-    return W_LEXICAL * lex + W_SEMANTIC * sem + W_METADATA * meta
+    return (
+        W_LEXICAL * lex
+        + W_SEMANTIC * sem
+        + W_TOPIC * top
+        + W_METADATA * meta
+    )
 
 
 # --------------------------------------------------------------------------
@@ -649,6 +955,7 @@ def _finalize(
     total_semantic: int,
     mode: str,
     rank_sorted: bool = True,
+    total_topic: int = 0,
 ) -> SearchResult:
     senses = _fetch_senses(conn, list(merged))
     hits: list[SearchHit] = []
@@ -661,6 +968,7 @@ def _finalize(
             s.get("frequency_rank"),
             s.get("priority_level"),
             is_prefix=is_prefix,
+            topic_rank=ranks.get("_topic_rank"),
         )
         hits.append(
             SearchHit(
@@ -680,7 +988,11 @@ def _finalize(
                 score=score,
             )
         )
-    total = max(total_lexical, total_semantic)
+    # Every channel's total is now query-bounded (lexical hits, semantic
+    # neighbours inside the cosine cutoff, topic senses in the matched
+    # subtrees), so the largest of them is an honest "how many are there"
+    # for pagination rather than the size of the whole corpus.
+    total = max(total_lexical, total_semantic, total_topic)
     if not rank_sorted:
         # Browse path: rows came back SQL-ordered and already paginated.
         return SearchResult(hits=hits, total=total, mode=mode, query=req.query)
@@ -698,13 +1010,49 @@ def _finalize(
         hits.sort(key=lambda h: (h.frequency_rank is None, h.frequency_rank or 0))
     else:
         hits.sort(key=lambda h: (-h.score, h.headword.lower(), h.sense_key))
+        # Relevance is the default view, and the one where a polysemous
+        # headword would otherwise monopolise the page (see `_diversify`).
+        # Explicit sorts (cefr, headword, ...) keep their strict ordering.
+        hits = _diversify(hits)
 
     page = hits[req.offset : req.offset + req.limit]
     return SearchResult(hits=page, total=total, mode=mode, query=req.query)
 
 
+def _diversify(hits: list[SearchHit]) -> list[SearchHit]:
+    """One result per headword first; repeats follow in the same order.
+
+    A Wiktionary headword carries many senses (`travel` 13, `set` 96) and
+    every rank-derived channel lists all of them adjacent, so a relevance
+    page for "travel" filled up with the word *travel* and pushed the
+    vocabulary the teacher was actually asking for (bus, journey, hotel)
+    off the page. Worse for topical queries, which is where it was noticed.
+
+    Repeats are NOT dropped — the sense list stays complete and every sense
+    keeps its relative position — they are only tiered: all first
+    occurrences, then all second occurrences, and so on. Deterministic
+    (tier = how many earlier hits share the headword), so it is stable for a
+    given candidate window and testable without a database.
+    """
+    seen: dict[str, int] = {}
+    tiers: list[list[SearchHit]] = []
+    for hit in hits:
+        key = hit.headword.casefold()
+        tier = seen.get(key, 0)
+        seen[key] = tier + 1
+        while len(tiers) <= tier:
+            tiers.append([])
+        tiers[tier].append(hit)
+    out: list[SearchHit] = []
+    for tier in tiers:
+        out.extend(tier)
+    return out
+
+
 def _merge(
-    lex_rows: list[dict[str, Any]], sem_rows: list[dict[str, Any]]
+    lex_rows: list[dict[str, Any]],
+    sem_rows: list[dict[str, Any]],
+    topic_rows: list[dict[str, Any]] | None = None,
 ) -> dict[uuid.UUID, dict[str, Any]]:
     merged: dict[uuid.UUID, dict[str, Any]] = {}
     for r in lex_rows:
@@ -716,6 +1064,9 @@ def _merge(
         entry = merged.setdefault(r["id"], {"_is_prefix": False})
         entry["_semantic_rank"] = r["_semantic_rank"]
         entry["_semantic_distance"] = r["_semantic_distance"]
+    for r in topic_rows or []:
+        entry = merged.setdefault(r["id"], {"_is_prefix": False})
+        entry["_topic_rank"] = r["_topic_rank"]
     return merged
 
 
@@ -725,19 +1076,12 @@ def _count_lexical(conn: Connection, req: SearchRequest) -> int:
     _apply_filters(conn, req.filters, where, params)
     prefix_sql, prefix_or, prefix_params = _prefix_predicates(req.query)
     params.update(prefix_params)
-    match_sql = (
-        f"""
-          AND (
-            vs.fts @@ websearch_to_tsquery('simple', :q)
-            OR EXISTS (SELECT 1 FROM sense_translations st
-                       WHERE st.sense_id = vs.id AND st.fts @@ websearch_to_tsquery('simple', :q))
-            OR EXISTS (SELECT 1 FROM sense_definitions sd
-                       WHERE sd.sense_id = vs.id AND sd.fts @@ websearch_to_tsquery('simple', :q))
-            {('OR ' + prefix_or) if prefix_or else ''}
-          )"""
-        if req.query.strip()
-        else ""
-    )
+    match_sql = ""
+    if req.query.strip():
+        twin = _punctuation_twin(req.query)
+        if twin:
+            params["qnorm"] = twin
+        match_sql = "\n          AND " + _fts_disjunction(req.query, prefix_or)
     sql = f"""
         SELECT count(*) FROM vocabulary_senses vs
         {"" if req.filters.student_id is None else _STUDENT_JOINS}
@@ -792,6 +1136,15 @@ def _search_semantic_only(conn: Connection, req: SearchRequest) -> SearchResult:
 def _search_hybrid(conn: Connection, req: SearchRequest) -> SearchResult:
     lex_rows, lex_req = _lexical_stage(conn, req, ranked=True)
     sem_rows, sem_total = _semantic_query(conn, req)
-    merged = _merge(lex_rows, sem_rows)
+    topic_rows, topic_total = _topic_query(conn, req)
+    merged = _merge(lex_rows, sem_rows, topic_rows)
     lex_total = _count_lexical(conn, lex_req)
-    return _finalize(conn, merged, lex_req, lex_total, sem_total, mode="hybrid")
+    return _finalize(
+        conn,
+        merged,
+        lex_req,
+        lex_total,
+        sem_total,
+        mode="hybrid",
+        total_topic=topic_total,
+    )

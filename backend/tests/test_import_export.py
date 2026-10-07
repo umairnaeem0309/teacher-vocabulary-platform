@@ -25,6 +25,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.core import auth as auth_core
+from pipeline.normalize.clean import search_key
 from tests.conftest import requires_db
 
 PASSWORD = "correct horse battery staple"
@@ -64,7 +65,17 @@ def _drop_teacher(email: str) -> None:
 
 
 def _cleanup_senses(prefix: str) -> None:
-    """Delete imported test senses and their child rows (FK-safe order)."""
+    """Delete imported test senses and their child rows (FK-safe order).
+
+    The prefix must be matched in its *search-key* form. A sense_key is
+    derived from the headword through ``search_key``, which maps ``-`` to a
+    space, so a sense imported with headword ``io-test-ab12 alpha`` is stored
+    as sense_key ``io test ab12 alpha|noun|<digest>``. Matching the raw
+    prefix with LIKE therefore deleted nothing, and every run leaked its
+    imported senses (plus examples, translations and forms) into the shared
+    development database — found by comparing the live database against the
+    handoff dump, which drifted by four senses per full test run.
+    """
     from app.db.session import get_engine
 
     with get_engine().begin() as conn:
@@ -72,7 +83,7 @@ def _cleanup_senses(prefix: str) -> None:
             text(
                 "SELECT id FROM vocabulary_senses WHERE sense_key LIKE :p"
             ),
-            {"p": prefix + "%"},
+            {"p": search_key(prefix) + "%"},
         ).scalars().all()
         if not ids:
             return

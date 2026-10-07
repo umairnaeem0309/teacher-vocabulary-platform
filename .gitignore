@@ -76,5 +76,10 @@ master.md
 master_prompt.md
 pipeline/README.md
 pipeline/pyproject.toml
+plan.md
 requiremnts.txt
 scripts/reset_teachers.sql
+
+# phase artifacts
+EMBEDDING_DUMP_RUNBOOK.txt
+colab_embed.ipynb

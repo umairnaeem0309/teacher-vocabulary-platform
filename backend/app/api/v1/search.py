@@ -57,7 +57,15 @@ class SearchFiltersIn(BaseModel):
 class SearchRequestIn(BaseModel):
     """Request body for POST /vocabulary/search (sections 20-22)."""
 
-    query: str = Field(default="", max_length=300, examples=["vacation"])
+    # Generous enough to search the corpus's own text: the longest sense
+    # embedding recipe is 861 chars and 18% of senses exceed 300, so the
+    # old 300-char cap rejected a teacher pasting a definition straight
+    # back into search (HTTP 422). Still bounded, so a pasted paragraph is
+    # the practical ceiling rather than an unbounded body.
+    query: str = Field(
+        default="", max_length=2000, examples=["vacation"],
+        description="free text; quoted phrases, OR and -exclusions supported"
+    )
     mode: str = Field(
         default="hybrid", description="hybrid | lexical | semantic"
     )

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -160,9 +161,18 @@ def configure_torch_threads() -> int:
 
 
 class EmbeddingModel:
-    """Lazy BGE-M3 encoder; loads on first use (heavy), cached thereafter."""
+    """Lazy BGE-M3 encoder; loads on first use (heavy), cached thereafter.
+
+    Thread-safe by design: the API serves the synchronous search endpoints
+    from a thread pool, so several requests can reach an unloaded model at
+    the same instant. Loading is guarded by a lock (double-checked) so
+    exactly one ``SentenceTransformer`` is built and the rest wait for it.
+    Without this, each concurrent request built its own ~3.3 GB BGE-M3 and
+    the process died with a native allocation failure on this 7.7 GB box.
+    """
 
     _shared: ClassVar[EmbeddingModel | None] = None
+    _shared_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __init__(
         self,
@@ -174,18 +184,38 @@ class EmbeddingModel:
         self.device = device
         self.cache_folder = Path(cache_folder) if cache_folder else DEFAULT_MODEL_CACHE
         self._model: Any = None
+        self._load_lock = threading.Lock()
+
+    def _model_cached(self) -> bool:
+        """True when the HF snapshot for this model is already on disk.
+
+        The platform ships a pre-populated ``data/models`` cache, so the
+        Hugging Face Hub round-trips (``HEAD``/``GET`` of modules.json,
+        config, model card, ...) are pure dead time — measured ~15 s per
+        cold load. When the snapshot is present we load with
+        ``local_files_only=True`` and skip them entirely; only a genuinely
+        missing model is allowed to reach the network.
+        """
+        snapshot = self.cache_folder / (
+            "models--" + self.model_name.replace("/", "--")
+        )
+        return snapshot.is_dir()
 
     def _ensure(self) -> Any:
-        if self._model is None:
-            from sentence_transformers import SentenceTransformer
+        if self._model is not None:  # fast path: loaded, no lock on the hot path
+            return self._model
+        with self._load_lock:
+            if self._model is None:  # re-check under the lock
+                from sentence_transformers import SentenceTransformer
 
-            configure_torch_threads()
-            self.cache_folder.mkdir(parents=True, exist_ok=True)
-            self._model = SentenceTransformer(
-                self.model_name,
-                device=self.device,
-                cache_folder=str(self.cache_folder),
-            )
+                configure_torch_threads()
+                self.cache_folder.mkdir(parents=True, exist_ok=True)
+                self._model = SentenceTransformer(
+                    self.model_name,
+                    device=self.device,
+                    cache_folder=str(self.cache_folder),
+                    local_files_only=self._model_cached(),
+                )
         return self._model
 
     def encode(self, texts: list[str], batch_size: int = DEFAULT_BATCH_SIZE) -> list[list[float]]:
@@ -206,8 +236,13 @@ class EmbeddingModel:
 
     @classmethod
     def shared(cls) -> EmbeddingModel:
+        # The singleton wrapper is created lazily too; guard it so two
+        # threads cannot each build their own wrapper (and thus their own
+        # model, since each wrapper loads one).
         if cls._shared is None:
-            cls._shared = cls()
+            with cls._shared_lock:
+                if cls._shared is None:
+                    cls._shared = cls()
         return cls._shared
 
 

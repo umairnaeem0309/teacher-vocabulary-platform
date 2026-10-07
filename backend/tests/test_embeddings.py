@@ -176,6 +176,139 @@ class TestGeneration:
         assert rep1.as_dict() == rep2.as_dict()
 
 
+class TestConcurrentModelLoad:
+    def test_model_loads_once_under_concurrent_first_use(self, monkeypatch) -> None:
+        """Regression: concurrent first use must build ONE model instance.
+
+        The API serves the synchronous search endpoints from a thread pool,
+        so several requests can reach an unloaded model at the same moment.
+        Without the load lock each thread built its own ~3.3 GB BGE-M3 and
+        the process aborted with a native "memory allocation ... failed" on
+        this 7.7 GB machine.
+        """
+        import sys
+        import threading
+        import time
+        import types
+
+        import pipeline.enrich.embeddings as emb
+
+        builds: list[int] = []
+        builds_lock = threading.Lock()
+
+        class _Vec:
+            def __init__(self, n: int) -> None:
+                self._n = n
+
+            def tolist(self) -> list[float]:
+                return [0.0] * self._n
+
+        class _FakeSentenceTransformer:
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                time.sleep(0.05)  # widen the window a real load would occupy
+                with builds_lock:
+                    builds.append(1)
+
+            def encode(self, texts: list[str], **kwargs: object) -> list[_Vec]:
+                return [_Vec(DIMS) for _ in texts]
+
+        fake_module = types.ModuleType("sentence_transformers")
+        fake_module.SentenceTransformer = _FakeSentenceTransformer  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "sentence_transformers", fake_module)
+        # torch is not a test dependency; stub the core-count tuning
+        monkeypatch.setattr(emb, "configure_torch_threads", lambda: 1)
+
+        model = emb.EmbeddingModel()  # a fresh instance, not the singleton
+        start = threading.Barrier(8)
+        done: list[int] = []
+
+        def worker() -> None:
+            start.wait()
+            model.encode(["hotel"])
+            done.append(1)
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(done) == 8
+        assert len(builds) == 1, f"model constructed {len(builds)} times, expected 1"
+
+
+class TestLocalModelLoad:
+    def _load_kwargs(self, monkeypatch, cache_folder):
+        import sys
+        import types
+
+        import pipeline.enrich.embeddings as emb
+
+        captured: dict = {}
+
+        class _FakeSentenceTransformer:
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                captured.update(kwargs)
+
+            def encode(self, texts: list[str], **kwargs: object) -> list:
+                return []
+
+        fake_module = types.ModuleType("sentence_transformers")
+        fake_module.SentenceTransformer = _FakeSentenceTransformer  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "sentence_transformers", fake_module)
+        monkeypatch.setattr(emb, "configure_torch_threads", lambda: 1)
+        emb.EmbeddingModel(cache_folder=cache_folder).encode(["x"])
+        return captured
+
+    def test_uses_local_files_only_when_model_cached(self, monkeypatch, tmp_path) -> None:
+        # A populated cache must not trigger Hub round-trips: the HEAD/GET
+        # chatter measured ~15 s of dead time on every cold load.
+        (tmp_path / "models--BAAI--bge-m3").mkdir()
+        kwargs = self._load_kwargs(monkeypatch, tmp_path)
+        assert kwargs.get("local_files_only") is True
+
+    def test_allows_download_when_model_absent(self, monkeypatch, tmp_path) -> None:
+        # No snapshot on disk -> the Hub must stay reachable to fetch it.
+        kwargs = self._load_kwargs(monkeypatch, tmp_path)
+        assert kwargs.get("local_files_only") is False
+
+
+class TestStartupWarmup:
+    def test_warmup_encodes_once_when_available(self, monkeypatch) -> None:
+        import pipeline.enrich.embeddings as emb
+
+        calls: list[list[str]] = []
+
+        class _Model:
+            def encode(self, texts: list[str], **kwargs: object) -> list:
+                calls.append(texts)
+                return []
+
+        monkeypatch.setattr(
+            emb.EmbeddingModel, "shared", classmethod(lambda cls: _Model())
+        )
+        from app.main import _warm_embeddings
+
+        _warm_embeddings()
+        assert calls == [["warmup"]]
+
+    def test_warmup_failure_never_breaks_startup(self, monkeypatch) -> None:
+        # a failed warm-up must be swallowed: the app still boots and the
+        # model simply loads lazily on the first real search.
+        import pipeline.enrich.embeddings as emb
+
+        class _BoomModel:
+            def encode(self, texts: list[str], **kwargs: object) -> list:
+                raise RuntimeError("model unavailable")
+
+        monkeypatch.setattr(
+            emb.EmbeddingModel, "shared", classmethod(lambda cls: _BoomModel())
+        )
+        from app.main import _warm_embeddings
+
+        _warm_embeddings()  # must not raise
+
+
 class TestPgEmbeddingStore:
     @requires_db
     @requires_vector

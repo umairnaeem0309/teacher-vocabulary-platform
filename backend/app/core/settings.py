@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     # --- Embeddings placeholder (used from Phase 12) ---
     embedding_model: str = "BAAI/bge-m3"
     vector_dimension: int = 1024
+    #: Load the BGE-M3 model at startup in a background thread so the first
+    #: semantic search does not pay the ~20 s cold load inline. Set false to
+    #: load lazily on first use instead.
+    embedding_warmup: bool = True
 
     @field_validator("database_url")
     @classmethod

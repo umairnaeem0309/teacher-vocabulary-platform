@@ -5,12 +5,17 @@ Polish-speaking students: vocabulary discovery (lexical + semantic),
 management, student assignment with sense-level duplicate prevention,
 manual review and FSRS spaced repetition.
 
+- `documentation.md` — **client** setup runbook (shipped in the GitHub zip)
 - `master.md` — project constitution
 - `decision.md` — architecture decision log
 - `current-state.md` — honest operational state (updated every phase)
 - `architecture.md` — actual implemented architecture
 - `plan.md` — phase plan (Phases 0–30)
 - `master_prompt.md` / `requiremnts.txt` — original specification + BRD
+
+> Except `README.md` and `documentation.md`, everything in the list above
+> plus the whole `docs/` folder is a Git-ignored development note — it is
+> **not** part of the shipped client zip.
 
 ## Stack
 
@@ -85,8 +90,9 @@ cd backend  && PYTHONPATH=.. uv run python ../scripts/phase28_readiness.py
                                                      # full local-readiness gate (§104, docs/environment.md)
 ```
 
-Backups and the real restore test: `docs/backups.md`. Register the
-required automatic daily backup once with
+Backups are written to `data/backups/`; `scripts/db_backup.py verify` runs
+a real restore test into a scratch database. Register the required
+automatic daily backup once with
 `python scripts/install_backup_schedule.py install` (§51; Windows Task
 Scheduler or cron).
 

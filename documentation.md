@@ -4,9 +4,10 @@ This is the one-page runbook for the client: download the GitHub zip,
 install everything you need, restore the database dump, and run the demo.
 
 > The GitHub zip contains **no data** and **no `node_modules`/`.venv`** —
-> those are installed on first run. The only "extra file" you need is the
-> database dump (`data/backups/*.dump`, ~231 MiB), which is a separate
-> download from where you get the source.
+> those are installed on first run. Two things come from **outside** the
+> zip: the **database dump** (`data/backups/*.dump`, ~386 MiB, a separate
+> download) and the **embedding model** (BGE-M3 — a few GB, auto-downloaded
+> on the first run, or supplied as a `data/models/` folder for offline use).
 
 ---
 
@@ -14,15 +15,35 @@ install everything you need, restore the database dump, and run the demo.
 
 | Item | Where from | Size | Purpose |
 |---|---|---|---|
-| `vocab-platform.zip` | GitHub repo archive | ~50–80 MB | Source, docs, migrations, configs, scripts |
-| `vocab_platform_<ts>.dump` | Backups folder (local handoff) | ~231 MiB | Full database (41,690 senses, embeddings, review state) |
+| `vocab-platform.zip` | GitHub repo archive | ~50–80 MB | Source, migrations, configs, scripts |
+| `vocab_platform_<ts>.dump` | Backups folder (local handoff) | ~386 MiB | Full database (71,149 senses, embeddings, review state) |
+| BGE-M3 embedding model | Auto-downloaded on first run, **or** handed over as `data/models/` | ~2.3 GB (download) · ~7.6 GB (as a folder) | Encoder for `semantic` / `hybrid` search |
 
-Nothing else is needed to run the demo. `data/raw` (2.7 GB) is used only
-to rebuild the database and is never committed.
+The zip carries **no data and no dev docs**: `data/`, `docs/`, and the
+constitution / plan files (`master.md`, `decision.md`, `current-state.md`,
+`architecture.md`, `plan.md`, `master_prompt.md`, `requiremnts.txt`) are
+Git-ignored and therefore **not** in the archive. Two things are supplied
+outside the zip:
+
+1. **The database dump** — a separate ~386 MiB download; drop it in
+   `data/backups/` (§6).
+2. **The embedding model (BAAI/bge-m3)** — required for `semantic`/`hybrid`
+   search. On the first run it is downloaded automatically (a few GB,
+   **internet needed once**) into `data/models/`. To run fully offline,
+   place a pre-downloaded `data/models/` folder next to the source
+   (the cache here is ~7.6 GB — it holds both weight formats).
+
+`data/raw` (2.7 GB) is used only to rebuild the database and is never
+shipped.
 
 ---
 
 ## 1. Machine prerequisites (install these once per machine)
+
+**Hardware:** a 64-bit machine with **8 GB RAM and ~10 GB free disk**
+at minimum. `semantic`/`hybrid` search holds the BGE-M3 model in memory
+(~3.3 GB), so 8 GB works but should not also be running other heavy
+applications; 4 GB machines should stick to `mode=lexical`.
 
 Open PowerShell **as Administrator** and run the relevant commands.
 
@@ -115,6 +136,11 @@ brew install git                     # macOS
 cp .env.example .env
 ```
 
+Create `.env` at the **repo root**. The `scripts/*` utilities read it from
+there directly; the backend resolves `.env` relative to its own working
+directory, so start it with `--env-file ../.env` (the commands in §8
+already do). One root `.env` then configures everything.
+
 Edit `.env` **only if** your PostgreSQL user, password, or port differ
 from the defaults (`postgres` / `postgres` @ `localhost:5432`).
 
@@ -163,18 +189,16 @@ uv sync
 uv run alembic upgrade head
 ```
 
-If you restored a dump that predates the current schema, also run:
-
-```bash
-uv run alembic upgrade head
-```
+Run `alembic upgrade head` again after restoring a dump that predates the
+current schema (§6) — the dump restores data, not the migration stamp.
 
 ---
 
 ## 6. Load the vocabulary data (from the dump, not `data/raw`)
 
-The GitHub zip ships with a **database dump** under
-`data/backups/` (the original `data/raw` corpora are **not** needed):
+The dump is **not** inside the GitHub zip. Put the supplied
+`vocab_platform_<ts>.dump` under `data/backups/` (create the folder), then
+restore it (still in `backend/`; the `..` paths are relative to it):
 
 ```bash
 uv run python ../scripts/db_backup.py restore \
@@ -182,11 +206,14 @@ uv run python ../scripts/db_backup.py restore \
   --target-db vocab_platform --clean
 ```
 
-- `--clean` drops existing objects first.
+- `--clean` drops existing objects first; the target database is created
+  if it does not exist yet.
 - `--no-owner --no-privileges` are always used, so a dump restores across
   local roles.
 - The `vector` extension is recreated by the dump itself.
-- The dump contains the built corpus + review data (~41,690 senses,
+- `db_backup.py` puts the repo root on `sys.path` itself, so no
+  `PYTHONPATH` is needed here.
+- The dump contains the built corpus + review data (~71,149 senses,
   embeddings, and learning state). It is a **custom-format** `pg_dump`
   restore, not a re-run of the multi-hour construction pipeline.
 
@@ -212,7 +239,7 @@ Start the backend in one terminal and the frontend in another:
 ```bash
 # terminal 1
 cd backend
-PYTHONPATH=.. uv run uvicorn app.main:app --reload --port 8000
+PYTHONPATH=.. uv run uvicorn app.main:app --reload --port 8000 --env-file ../.env
 
 # terminal 2
 cd frontend
@@ -220,19 +247,12 @@ pnpm dev      # http://localhost:3000
 ```
 
 > If the backend fails with `ModuleNotFoundError: No module named 'pipeline'`,
-> the repo root must be on `PYTHONPATH` at runtime. Run instead:
-
-```bash
-cd backend
-PYTHONPATH=.. uv run uvicorn app.main:app --reload --port 8000
-```
-
-> If that still fails, set `PYTHONPATH` explicitly to the project root:
+> the repo root must be on `PYTHONPATH` at runtime. Set it explicitly:
 
 ```bash
 cd backend
 $env:PYTHONPATH = ".."
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8000 --env-file ../.env
 ```
 
 On first launch there is no account yet. Open `http://localhost:3000` — it
@@ -243,19 +263,48 @@ until the first teacher exists** (afterwards it answers `403
 bootstrap_closed` and the form falls back to sign-in). Thereafter sign in
 normally at `/login`.
 
-> **Restored a `data/backups/*.dump`?** The teacher from that dump already
-> exists, so the create window is closed — sign in with the account the dump
-> was made with (the acceptance seed account is `acceptance@example.com` /
-> `acceptance-teacher-Passw0rd!`).
+> **Restored a `data/backups/*.dump`?** The dump already contains the
+> teacher account it was created with (for the handoff dump that
+> accompanies this project that account is `test@gmail.com`), so the create
+> window is closed and `POST /api/v1/auth/bootstrap` answers
+> `403 bootstrap_closed`. Sign in with that account if you know its
+> password.
 >
-> **Prefer your own account instead?** Reopen the create window by removing
-> the existing teacher (also removes teacher-owned rows — students, sets,
-> review history; the vocabulary corpus is untouched):
+> **Prefer your own account (or don't know the password)?** Reopen the
+> create window by deleting the existing teacher(s). This also removes
+> teacher-owned rows — students, sets, review history — and leaves the
+> vocabulary corpus untouched. Run this in pgAdmin's query tool (or via
+> `psql`) against `vocab_platform`:
 >
->     psql -U postgres -d vocab_platform -v ON_ERROR_STOP=1 -f scripts/reset_teachers.sql
+> ```sql
+> BEGIN;
+> DELETE FROM review_events
+>  WHERE teacher_id IN (SELECT id FROM teachers)
+>     OR student_id IN (SELECT id FROM students WHERE teacher_id IN (SELECT id FROM teachers));
+> DELETE FROM student_fsrs_states
+>  WHERE student_vocabulary_id IN (
+>    SELECT sv.id FROM student_vocabulary sv
+>    JOIN students s ON s.id = sv.student_id
+>    WHERE s.teacher_id IN (SELECT id FROM teachers));
+> DELETE FROM teacher_priority_overrides
+>  WHERE student_id IN (SELECT id FROM students WHERE teacher_id IN (SELECT id FROM teachers));
+> DELETE FROM student_vocabulary
+>  WHERE student_id IN (SELECT id FROM students WHERE teacher_id IN (SELECT id FROM teachers));
+> DELETE FROM students WHERE teacher_id IN (SELECT id FROM teachers);
+> DELETE FROM vocabulary_set_items
+>  WHERE set_id IN (SELECT id FROM vocabulary_sets WHERE teacher_id IN (SELECT id FROM teachers));
+> DELETE FROM vocabulary_sets WHERE teacher_id IN (SELECT id FROM teachers);
+> DELETE FROM teacher_sessions WHERE teacher_id IN (SELECT id FROM teachers);
+> DELETE FROM teachers;
+> COMMIT;
+> SELECT count(*) AS teachers_remaining FROM teachers;  -- must be 0
+> ```
 >
-> then refresh `/login` and use **Create the first teacher account**.
+> Then refresh `/login` and use **Create the first teacher account**.
 > Recover anything you miss by restoring the dump again (§6).
+>
+> (The development helper `scripts/reset_teachers.sql` performs these same
+> deletions, but it is Git-ignored and therefore **not** in the zip.)
 
 Health check: `curl http://localhost:8000/api/v1/health`
 → `{"status":"ok","database":"up", ...}`.
@@ -272,7 +321,8 @@ python scripts/install_backup_schedule.py install --time 02:00 --keep 7
 ```
 
 Check it with `... status`, show the job with `... print`, remove it with
-`... remove`. See `docs/backups.md` for the full procedure.
+`... remove`. Backups are written to `data/backups/` (the newest `--keep`
+are retained) and those files are exactly what §6 restores from.
 
 ---
 
@@ -283,8 +333,8 @@ cd backend && uv run pytest
 cd frontend && pnpm exec tsc --noEmit && pnpm exec eslint . && pnpm exec vitest run
 ```
 
-Expected: backend **379 passed**, frontend type-check and lint clean,
-unit tests **27 passed**. The Playwright suite (`pnpm exec playwright
+Expected: backend **381 passed**, frontend type-check and lint clean,
+unit tests **28 passed**. The Playwright suite (`pnpm exec playwright
 test`, 9 tests) exercises the full workflow against the real stack —
 including a navigation/endpoint sweep (`e2e/navigation.spec.ts`) that
 walks every sidebar route and calls every read endpoint the UI uses.
@@ -303,7 +353,10 @@ walks every sidebar route and calls every read endpoint the UI uses.
 | `type "vector" does not exist` | Run `CREATE EXTENSION vector;` on the DB; confirm the `vector` extension files are in `share` and on `search_path`. |
 | `pg_dump`/`pg_restore` not found | Set `PG_BIN` to the PostgreSQL `bin` directory. |
 | Search returns nothing | Broaden filters; the corpus is sense-level, so a very specific phrase may match fewer senses. |
-| Semantic search slowest on first query | The embedding model loads on first use (~260 ms/query on CPU); repeats are cached. |
+| Semantic search is slow on the very first run | The BGE-M3 model (a few GB) loads in the background at startup (`EMBEDDING_WARMUP=true`). A fresh install also **downloads** it from Hugging Face on that first run — allow a few minutes and an internet connection, or supply a pre-populated `data/models/`. Later starts load from the local cache with no network calls. |
+| `semantic`/`hybrid` search fails or hangs with no internet | The model cache is missing. Copy a `data/models/` folder into the repo, or use `mode=lexical`, which needs no model. |
+| Edited `.env` at the repo root but the backend ignores it | Start uvicorn with `--env-file ../.env` (see §8). The backend reads `.env` relative to its working directory, not the repo root; the `scripts/*` tools do read the root `.env`. |
+| `docs/…`, `master.md`, `decision.md` not found | Those are Git-ignored development notes and are **not** shipped in the zip. The client-facing docs are this file and `README.md`. |
 | Backup task did not run | Open Task Scheduler (Windows) or `crontab -l` (Unix); confirm the interpreter path and `PG_BIN` are valid in the scheduled context. |
 | `Cannot find path .env.example` | You ran the `cp` inside `backend/`. It lives at the **repo root**. |
 | `uv: command not found` | Add `uv`'s bin dir to `PATH` (Windows: `%USERPROFILE%\.local\bin`). |
